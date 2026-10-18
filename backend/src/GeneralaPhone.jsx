@@ -203,7 +203,9 @@ export default function GeneralaPhone({ phone }){
             {v.tabIsDice && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '18px 18px 20px', gap: 16, minHeight: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontSize: 15, fontWeight: 800, color: '#6E6052' }}>{v.rollsLabel}</span><div style={{ display: 'flex', gap: 6 }}>{v.rollDots.map((d, i) => <i key={i} style={{ width: 12, height: 12, borderRadius: '50%', background: d }} />)}</div></div>
-                <div data-dice-area="1" style={{ flex: 1, minHeight: 190, margin: '0 -18px', position: 'relative' }}>
+                {/* height follows the width (the grid layout's own proportions), never the leftover space: a layout change
+                    below (badge, buttons) must not resize the 3D view, or the dice would rescale mid-roll */}
+                <div data-dice-area="1" style={{ flex: 'none', aspectRatio: '1 / 0.82', margin: 'auto -18px', position: 'relative' }}>
                 <Dice3D query={DICE3D_QUERY} msg={v.dice3dMsg} onTap={on.dieTap} onSettled={on.diceSettled} fallback={
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, padding: '22px 18px 10px', width: '100%', boxSizing: 'border-box', alignItems: 'center', minWidth: 0, opacity: v.diceOpacity }}>
                   {v.dice.map((d, i) => (
@@ -217,11 +219,11 @@ export default function GeneralaPhone({ phone }){
                 </div>} />
                 </div>
                 <div style={{ textAlign: 'center', fontSize: 14, color: '#6E6052', fontWeight: 700, textWrap: 'pretty' }}>{v.diceHint}</div>
-                {v.servidaVisible && <div style={{ alignSelf: 'center', background: '#FFD166', borderRadius: 999, padding: '4px 12px', fontWeight: 800, fontSize: 13 }}>{T.served}</div>}
+                <div style={{ alignSelf: 'center', background: '#FFD166', borderRadius: 999, padding: '4px 12px', fontWeight: 800, fontSize: 13, visibility: v.servidaVisible ? 'visible' : 'hidden' }}>{T.served}</div>
                 <button data-roll="1" onPointerDown={on.rollDown} onPointerUp={on.rollUp} onPointerCancel={on.rollCancel} onClick={on.rollClick} onContextMenu={on.noMenu}
                   style={{ background: v.rollBg, color: v.rollFg, border: 'none', borderRadius: 20, padding: 20, fontSize: 22, fontWeight: 800, minHeight: 68, boxShadow: '0 14px 24px -14px rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', transform: `scale(${v.rollScale})`, transition: 'transform .15s' }}>{v.rollLabel}</button>
                 {v.shakeVisible && <div style={{ textAlign: 'center', fontSize: 13, color: '#8A7A6A', fontWeight: 700, visibility: v.shakeVis }}>{v.shakeHintText}</div>}
-                {v.goSheetVisible && <button onClick={on.tabSheet} style={{ ...outlineBtn, padding: 13, visibility: v.goSheetVis }}>{T.choose_cat} →</button>}
+                <button onClick={on.tabSheet} disabled={!v.goSheetVisible} style={{ ...outlineBtn, padding: 13, visibility: v.goSheetVisible ? v.goSheetVis : 'hidden' }}>{T.choose_cat} →</button>
               </div>
             )}
 
