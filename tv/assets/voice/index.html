@@ -4,12 +4,13 @@
 <meta charset="utf-8">
 <title>Generala narrator voice</title>
 <!--
-  Hidden page that speaks the narrator's lines with the WebView's Web Speech API (speechSynthesis).
+  Hidden page that plays the narrator's lines (tv/src/ui/Voice.js).
   Input:  window.say({ id, text, lang: 'es'|'en', url? })   — a newer line interrupts the current one.
-          With `url` (server-side TTS audio) it plays that audio; without it, speechSynthesis.
+          With `url` (server TTS audio, GET /api/tts) it plays it with Web Audio (fetch + decode + BufferSource);
+          without it, the Web Speech API (speechSynthesis), which on Vega exists but has no voices.
+          The native side must hold Vega audio focus while it plays, or the audio stalls at 0 s.
   Output (window.ReactNativeWebView.postMessage, JSON):
-          { type:'ready', supported, voices:[{ name, lang, local }] }   (again when the voice list changes)
-          { type:'start'|'end', id, voice } | { type:'error', id, error }
+          { type:'ready', supported, voices:[{ name, lang, local }] } | { type:'start'|'end', id } | { type:'error', id, error }
 -->
 </head>
 <body>
@@ -21,7 +22,27 @@
   var supported = !!(synth && Utt);
   function voices(){ try { return supported ? synth.getVoices() : []; } catch (e) { return []; } }
   function report(){ post({ type: 'ready', supported: supported, voices: voices().map(function(v){ return { name: v.name, lang: v.lang, local: v.localService }; }) }); }
-  // Prefer a rioplatense / Latin American Spanish voice for 'es', a US voice for 'en'.
+
+  // ---- server audio: Web Audio (the <audio> element stays paused at 0 s in the Vega WebView) ----
+  var ctx = null, src = null, current = null;
+  function stopAudio(){ current = null; try { if (src) src.stop(); } catch (e) {} src = null; }
+  function playUrl(line){
+    stopAudio(); current = line.id;
+    try { if (!ctx) ctx = new AudioContext(); } catch (e) { post({ type: 'error', id: line.id, error: 'ctx ' + e.message }); return; }
+    fetch(line.url)
+      .then(function(r){ if (!r.ok) throw new Error('http ' + r.status); return r.arrayBuffer(); })
+      .then(function(b){ return new Promise(function(ok, ko){ ctx.decodeAudioData(b, ok, ko); }); })
+      .then(function(buf){
+        if (current !== line.id) return;                      // a newer line arrived meanwhile
+        var s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination); src = s;
+        s.onended = function(){ if (src === s) { src = null; post({ type: 'end', id: line.id }); } };
+        var go = function(){ s.start(); post({ type: 'start', id: line.id }); };
+        if (ctx.state === 'suspended') ctx.resume().then(go, go); else go();
+      })
+      .catch(function(e){ if (current === line.id) post({ type: 'error', id: line.id, error: String(e && (e.message || e.name) || e) }); });
+  }
+
+  // ---- fallback: speechSynthesis (prefers rioplatense / Latin American Spanish, US English) ----
   var PREF = { es: ['es-AR', 'es-419', 'es-US', 'es-MX', 'es'], en: ['en-US', 'en-GB', 'en'] };
   function pickVoice(lang){
     var list = voices(), prefs = PREF[lang] || [lang];
@@ -31,32 +52,25 @@
     }
     return null;
   }
-  // Audio path: when the line carries a `url` (server-side TTS), play it instead of speechSynthesis.
-  var audio = new Audio(), audioId = null;
-  audio.onplaying = function(){ post({ type: 'start', id: audioId, voice: 'audio' }); };
-  audio.onended = function(){ post({ type: 'end', id: audioId }); };
-  audio.onerror = function(){ post({ type: 'error', id: audioId, error: 'audio ' + (audio.error && audio.error.code) }); };
-  function play(line){
-    audioId = line.id; audio.src = line.url;
-    var p = audio.play(); if (p && p.catch) p.catch(function(e){ post({ type: 'error', id: line.id, error: 'play ' + (e && e.name) }); });
+  function speak(line){
+    if (!supported){ post({ type: 'error', id: line.id, error: 'unsupported' }); return; }
+    synth.cancel();
+    var u = new Utt(line.text), v = pickVoice(line.lang);
+    u.lang = v ? v.lang : (line.lang === 'es' ? 'es-AR' : 'en-US');
+    if (v) u.voice = v;
+    u.rate = 1.05;
+    u.onstart = function(){ post({ type: 'start', id: line.id }); };
+    u.onend = function(){ post({ type: 'end', id: line.id }); };
+    u.onerror = function(e){ post({ type: 'error', id: line.id, error: String(e && e.error || 'error') }); };
+    synth.speak(u);
   }
+
   window.say = function(line){
     if (!line || !line.text) return;
-    if (line.url){ try { if (supported) synth.cancel(); audio.pause(); play(line); } catch (e) { post({ type: 'error', id: line.id, error: String(e && e.message || e) }); } return; }
-    if (!supported){ post({ type: 'error', id: line.id, error: 'unsupported' }); return; }
-    try {
-      synth.cancel();
-      var u = new Utt(line.text), v = pickVoice(line.lang);
-      u.lang = v ? v.lang : (line.lang === 'es' ? 'es-AR' : 'en-US');
-      if (v) u.voice = v;
-      u.rate = 1.05; u.pitch = 1;
-      u.onstart = function(){ post({ type: 'start', id: line.id, voice: v ? v.name : null }); };
-      u.onend = function(){ post({ type: 'end', id: line.id }); };
-      u.onerror = function(e){ post({ type: 'error', id: line.id, error: String(e && e.error || 'error') }); };
-      synth.speak(u);
-    } catch (e) { post({ type: 'error', id: line.id, error: String(e && e.message || e) }); }
+    try { if (supported) synth.cancel(); if (line.url) playUrl(line); else { stopAudio(); speak(line); } }
+    catch (e) { post({ type: 'error', id: line.id, error: String(e && e.message || e) }); }
   };
-  window.stopVoice = function(){ try { audio.pause(); if (supported) synth.cancel(); } catch (e) {} };
+  window.stopVoice = function(){ try { stopAudio(); if (supported) synth.cancel(); } catch (e) {} };
   if (supported && 'onvoiceschanged' in synth) synth.onvoiceschanged = report;
   report();
   addEventListener('load', report);

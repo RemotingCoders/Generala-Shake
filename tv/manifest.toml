@@ -31,3 +31,7 @@ categories = ["com.amazon.category.main"]
 # Web renderer service for the WebView (3D dice)
 [[wants.service]]
 id = "com.amazon.webview.renderer_service"
+
+# Audio focus for the narrator voice (src/ui/Voice.js, @amazon-devices/keplerscript-audio-lib)
+[[wants.service]]
+id = "com.amazon.audio.control"

@@ -1,9 +1,12 @@
-// Narrator voice: assets/voice/index.html in a hidden 1×1 WebView, speaking each new narrator line with the
-// WebView's speechSynthesis. Lines already on screen when the app (re)starts aren't spoken: only lines that
-// appear after the first one this component saw. Never takes D-pad focus.
+// Narrator voice: assets/voice/index.html in a hidden 1×1 WebView plays each new narrator line — server TTS
+// audio from GET /api/tts (OpenAI) when VOICE_TTS_URL is set. Lines already on screen when the app (re)starts
+// aren't spoken: only lines that appear after the first one this component saw. Never takes D-pad focus.
+// Vega: the app must hold audio focus while the line plays (otherwise WebView audio stalls at 0 s), so focus is
+// requested before each line and released when it ends.
 import React from 'react';
 import { View } from 'react-native';
 import { WebView } from '@amazon-devices/webview';
+import { AudioFocusManager, AudioUsageType } from '@amazon-devices/keplerscript-audio-lib';
 import { VOICE_DEBUG_URL, VOICE_TTS_URL } from '../config';
 
 const URI = 'file:///pkg/assets/voice/index.html';
@@ -17,10 +20,14 @@ function ttsUrl(l){
 
 export class Voice extends React.Component {
   web = React.createRef();
-  ready = false; seen = undefined; pending = null;
+  ready = false; seen = undefined; pending = null; focus = null; speaking = null;
 
-  componentDidMount(){ this.check(); }
+  componentDidMount(){
+    this.check();
+    AudioFocusManager.createAudioFocusSessionAsync().then(s => { this.focus = s; }, e => this.debug(JSON.stringify({ type: 'focusSession', err: String(e && (e.message || e)) })));
+  }
   componentDidUpdate(){ this.check(); }
+  componentWillUnmount(){ this.release(); }
 
   debug(data){ if (VOICE_DEBUG_URL) fetch(VOICE_DEBUG_URL + '/voice?data=' + encodeURIComponent(data)).catch(() => {}); }
 
@@ -35,14 +42,23 @@ export class Voice extends React.Component {
     this.pending = line; this.flush();
   }
 
-  flush(){
+  async flush(){
     if (!this.ready || !this.pending || !this.web.current) return;
     const l = this.pending; this.pending = null;
+    if (this.focus) await this.focus.requestAudioFocusAsync({ usage: AudioUsageType.USAGE_MEDIA }).catch(e => this.debug(JSON.stringify({ type: 'focus', err: String(e && (e.message || e)) })));
+    if (!this.web.current) return;
+    this.speaking = l.id;
     const json = JSON.stringify(VOICE_TTS_URL ? { id: l.id, text: l.text, lang: l.lang, url: ttsUrl(l) } : l);
     try { this.web.current.injectJavaScript('window.say&&window.say(' + json + ');true;'); } catch (e) { this.debug(JSON.stringify({ type: 'injectError', message: String(e && e.message) })); }
   }
 
-  stop(){ this.pending = null; if (this.ready && this.web.current) try { this.web.current.injectJavaScript('window.stopVoice&&window.stopVoice();true;'); } catch (e) {} }
+  release(){ this.speaking = null; if (this.focus) this.focus.releaseAudioFocusAsync().catch(() => {}); }
+
+  stop(){
+    this.pending = null;
+    if (this.ready && this.web.current) try { this.web.current.injectJavaScript('window.stopVoice&&window.stopVoice();true;'); } catch (e) {}
+    this.release();
+  }
 
   onMessage = (event) => {
     const raw = event && event.nativeEvent ? event.nativeEvent.data : null;
@@ -50,7 +66,7 @@ export class Voice extends React.Component {
     let d = raw; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { return; } }
     if (!d || typeof d !== 'object') return;
     if (d.type === 'ready') { this.ready = true; this.flush(); }
-    else if (d.type === 'error') console.warn('[voice] ' + d.error);
+    else if ((d.type === 'end' || d.type === 'error') && d.id === this.speaking) { if (d.type === 'error') console.warn('[voice] ' + d.error); this.release(); }
   };
 
   render(){

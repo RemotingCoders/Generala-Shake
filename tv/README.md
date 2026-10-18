@@ -115,4 +115,4 @@ En el emulador: flechas y Enter del teclado; Esc = Atrás. Para automatizar:
 
 ## Voz del relator
 
-Las frases del relator se escuchan por el parlante de la tele: `src/ui/Voice.js` reproduce el audio de `GET <API>/api/tts` (OpenAI, ver `backend/README.md`) en un WebView oculto. Respeta "Silenciar" y el relator apagado. Requiere `OPENAI_API_KEY` en Vercel; sin ella la tele queda en silencio sin errores visibles.
+Las frases del relator se escuchan por el parlante de la tele: `src/ui/Voice.js` reproduce el audio de `GET <API>/api/tts` (OpenAI, ver `backend/README.md`) en un WebView oculto. Respeta "Silenciar" y el relator apagado. Requiere `OPENAI_API_KEY` en Vercel; sin ella la tele queda en silencio sin errores visibles. En Vega el audio solo suena si la app pide el foco de audio (`@amazon-devices/keplerscript-audio-lib`, servicio `com.amazon.audio.control` en `manifest.toml`): `Voice.js` lo pide antes de cada frase y lo libera al terminar.

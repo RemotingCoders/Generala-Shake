@@ -22,7 +22,7 @@ export const REQUEST_TIMEOUT_MS = 8000;
 export const DICE3D_ENABLED = true;
 export const DICE3D_DEBUG_URL = '';
 
-// Narrator voice (speechSynthesis in a hidden WebView). VOICE_DEBUG_URL works like DICE3D_DEBUG_URL.
+// Narrator voice (hidden WebView, src/ui/Voice.js). VOICE_DEBUG_URL works like DICE3D_DEBUG_URL.
 export const VOICE_ENABLED = true;
 export const VOICE_DEBUG_URL = '';
 // Narrator audio: GET <VOICE_TTS_URL>?lang&k&name&score&cat&n (backend/api/tts.js, OpenAI). '' → the WebView's
