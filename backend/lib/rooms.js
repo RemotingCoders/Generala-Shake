@@ -146,11 +146,13 @@ export async function playAction(rawCode, body){
   const { action } = body;
   if (action === 'hold' && !(Number.isInteger(body.index) && body.index >= 0 && body.index < 5)) fail(400, 'badRequest');
   if (action === 'choose' && typeof body.cat !== 'string') fail(400, 'badRequest');
-  const fn = s => {
+  if (action === 'shake' && typeof body.active !== 'boolean') fail(400, 'badRequest');
+  const fn = (s, now) => {
     if (!s.players.some(p => p.id === pid)) return { error: 'unauthorized' };
     if (s.closed) return action === 'ping' || action === 'leave' ? { noop: true } : { error: 'closed' };
     switch (action) {
-      case 'roll': return E.rollDice(s, pid, rng);
+      case 'roll': return E.rollDice(s, pid, rng, now);
+      case 'shake': return E.setShaking(s, pid, body.active, now); // live shake on/off, no narrator event
       case 'hold': return E.toggleHold(s, pid, body.index);
       case 'choose': return E.chooseCategory(s, pid, body.cat);
       case 'ping': return { state: s };

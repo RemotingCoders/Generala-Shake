@@ -38,7 +38,7 @@ export default class TvApp extends React.Component {
     const sess = store.get(SESSION);
     if (sess) this.resume(sess);
   }
-  componentWillUnmount(){ window.removeEventListener('keydown', this.onKey); window.removeEventListener('resize', this.measure); this.unwatch(); }
+  componentWillUnmount(){ window.removeEventListener('keydown', this.onKey); window.removeEventListener('resize', this.measure); this.unwatch(); clearTimeout(this.settleTimer); clearTimeout(this.staleTimer); }
   componentDidUpdate(){ const sc = this.tvScreen(); if (sc !== this.lastScreen) { this.lastScreen = sc; if (this.state.tv.focus) this.setTv({ focus: 0 }); } }
 
   measure = () => { const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); if (s !== this.state.scale) this.setState({ scale: s }); };
@@ -62,7 +62,24 @@ export default class TvApp extends React.Component {
   unwatch(){ if (this.unwatchFn) { this.unwatchFn(); this.unwatchFn = null; } }
   detach(){ this.unwatch(); store.set(SESSION, null); this.seq = -1; this.setState({ game: null, session: null }); }
   roomGone(){ this.detach(); this.setState({ gone: true }); }
-  applyState(s, direct){ if (!s || s.seq < this.seq || (!direct && s.seq === this.seq)) return; this.seq = s.seq; this.setState({ game: s }); }
+  applyState(s, direct){
+    if (!s || s.seq < this.seq || (!direct && s.seq === this.seq)) return;
+    this.seq = s.seq; this.trackDice(s); this.setState({ game: s });
+  }
+  // turn-based tray: while the 3D dice land (MIN_SPIN_MS + DICE_SETTLE_MS) the sheet hides the new potential scores,
+  // and a shake that went stale (E.isShaking, 8 s) needs a re-render to stop showing.
+  trackDice(s){
+    const h = s.mode === 'turns' && s.phase === 'playing' ? s.hand : null;
+    const key = h && h.rolled ? [s.round, s.activeIdx, h.rollId || 0].join('|') : null;
+    if (key && this.rollKey !== undefined && key !== this.rollKey && this.dice3dReady) {
+      const ms = E.DICE_SETTLE_MS + (this.prevShaking ? 0 : E.MIN_SPIN_MS);
+      this.settleUntil = Date.now() + ms; clearTimeout(this.settleTimer); this.settleTimer = setTimeout(() => this.forceUpdate(), ms + 20);
+    }
+    this.rollKey = key; this.prevShaking = !!(h && h.shaking);
+    clearTimeout(this.staleTimer);
+    if (h && h.shaking) this.staleTimer = setTimeout(() => this.forceUpdate(), Math.max(0, (h.shakeTs || 0) + 8001 - Date.now()));
+  }
+  onDice3d = status => { this.dice3dReady = status === 'ready'; };
 
   async host(action, extra){
     const { session } = this.state; if (!session || this.state.busy) return null;
@@ -157,7 +174,7 @@ export default class TvApp extends React.Component {
     const screen = this.tvScreen(); const list = this.FOCUS[screen] || [];
     const joinUrl = game && publicUrl ? `${publicUrl}/?room=${game.roomCode}` : '';
     const props = {
-      game: this.state.gone ? null : game, tv: { ...tv, feed: (game && game.events) || [] }, act: this.tvAct, screen, focusId: list[tv.focus % (list.length || 1)],
+      game: this.state.gone ? null : game, tv: { ...tv, feed: (game && game.events) || [], settling: Date.now() < (this.settleUntil || 0), onDice3d: this.onDice3d }, act: this.tvAct, screen, focusId: list[tv.focus % (list.length || 1)],
       t: (k, v) => this.t(tv.lang, k, v), cat: (variant, c) => this.cat(tv.lang, variant, c), feedText: (ev) => this.feedText(tv.lang, ev), E, I,
       joinUrl, joinHost: publicUrl.replace(/^https?:\/\//, ''),
     };

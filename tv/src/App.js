@@ -4,7 +4,7 @@
 import React from 'react';
 import { AccessibilityInfo, BackHandler, View } from 'react-native';
 import { api, isGone } from './api';
-import { POLL_MS } from './config';
+import { POLL_MS, DICE3D_ENABLED } from './config';
 import { loadSession, saveSession, clearSession, loadPrefs, savePrefs } from './storage';
 import { computeVals, screenOf } from './viewModel';
 import { Home, Setup, Lobby, Playing, Results, Closed, Help } from './screens';
@@ -73,6 +73,9 @@ export class App extends React.Component {
   // onPress handlers by action id, e.g. on.start
   handlers = ['lang','vG','vY','continue','help','closeHelp','mTurns','mSimul','narr','len','create','back','start','leave','mute','pause','endGame','rematch','changeVariant','home']
     .reduce((o, id) => { o[id] = () => this.tvAct(id); return o; }, {});
+
+  // 3D dice reported that a roll has landed (src/ui/Dice3D.js): reveal potentials for it.
+  onDiceSettled = (d) => { if (d && d.rollKey && d.rollKey !== this.state.tv.landedKey) this.setTv({ landedKey: d.rollKey }); };
 
   setTv(patch){ this.setState(s => ({ tv: { ...s.tv, ...(typeof patch === 'function' ? patch(s.tv) : patch) } })); }
 
@@ -191,8 +194,8 @@ export class App extends React.Component {
   render(){
     const { tv, game, booting, session } = this.state;
     const screen = screenOf(tv, game);
-    const v = computeVals(tv, game);
-    const on = this.handlers;
+    const v = computeVals({ ...tv, dice3d: DICE3D_ENABLED }, game);
+    const on = { ...this.handlers, diceSettled: this.onDiceSettled };
     let body = null;
     if (!booting) {
       if (screen === 'help') body = <Help key="help" v={v} on={on} />;

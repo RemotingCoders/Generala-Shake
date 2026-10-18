@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Generala 3D dice</title>
+<!--
+  Embeddable 3D dice view (protocol: docs/ARCHITECTURE.md, "3D dice view"). No UI chrome.
+  Query params: bg=<hex without #> | transparent (default), pr=<pixel ratio> (default 1), debug=1 (stats messages).
+  Input:  window.diceUpdate(msg) or window.postMessage(msg)
+          msg = { type:'dice', dice:[5], held:[5], rolled, rollId, shaking, color:'#hex', reduced }
+  Output: { type:'ready' } | { type:'settled', rollId, faces, valid } | { type:'error', message } (+ { type:'stats' } with debug=1)
+-->
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;-webkit-user-select:none;user-select:none}
+canvas{display:block;position:absolute;left:0;top:0}
+</style>
+</head>
+<body>
+<script>
+// Output channel: React Native WebView bridge, else the parent window (iframe). Also kept in window.dice3dLog.
+window.dice3dLog = [];
+function dice3dPost(msg){
+  window.dice3dLog.push(msg);
+  try {
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+    else if (window.parent && window.parent !== window) window.parent.postMessage(msg, '*');
+  } catch (e) { /* host gone */ }
+}
+window.addEventListener('error', function(e){ dice3dPost({ type: 'error', message: String(e.message || e) }); });
+</script>
+<script src="motion-engine.js"></script>
+<script src="three.classic.js"></script>
+<script>
+(function(){
+'use strict';
+try {
+  const THREE = window.THREE;
+  if (!THREE || !window.DiceMotionCore) throw new Error('scripts not loaded');
+  const Q = new URLSearchParams(location.search);
+  const bgParam = (Q.get('bg') || 'transparent').replace('#', '');
+  const transparent = bgParam === 'transparent';
+  const DEBUG = Q.get('debug') === '1';
+  const MIN_SPIN_MS = 350, SETTLE_MS = 5000;   // engine.js MIN_SPIN_MS / DICE_SETTLE_MS
+
+  // ---- renderer / camera ----
+  const probe = document.createElement('canvas');
+  if (!(probe.getContext('webgl2') || probe.getContext('webgl'))) throw new Error('webgl unavailable');
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: transparent });
+  renderer.setPixelRatio(Number(Q.get('pr')) || 1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  if (transparent) renderer.setClearColor(0x000000, 0);
+  else { renderer.setClearColor(new THREE.Color('#' + bgParam), 1); document.body.style.background = '#' + bgParam; }
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+  camera.position.set(0, 0, 17); camera.lookAt(0, 0, 0);
+
+  // World layout: a row of 5 dice (side 1.25) spaced 2.25 apart. 1.09 bounds the projected half-size of a
+  // spinning die (0.625·√3), so neighbours can never overlap. Held dice are lifted by LIFT.
+  const SIZE = 1.25, H = SIZE / 2, SPACING = 2.25, R = 1.09, LIFT = 0.42, ROW_Y = -0.18;
+  const NEED_W = 4 * SPACING + 2 * R + 0.5, NEED_H = 2 * R + LIFT + 0.9;
+  function fit(){
+    const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight), a = w / h;
+    renderer.setSize(w, h);
+    const vh = Math.max(NEED_H, NEED_W / a);
+    camera.top = vh / 2; camera.bottom = -vh / 2; camera.left = -vh * a / 2; camera.right = vh * a / 2;
+    camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+    dirty = true;
+  }
+  let dirty = true, resizeTimer = 0;
+  addEventListener('resize', function(){ clearTimeout(resizeTimer); resizeTimer = setTimeout(fit, 60); });
+
+  // ---- lights: front face (+Z) reads close to the 2D cream, sides fall off for depth ----
+  scene.add(new THREE.HemisphereLight(0xfff6e8, 0x5a4a40, 1.35));
+  const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(-3, 5, 10); scene.add(key);
+  const fill = new THREE.DirectionalLight(0xffe9cc, 0.5); fill.position.set(6, -3, 4); scene.add(fill);
+
+  // ---- dice geometry: rounded box (vertices pushed onto a rounded cube), analytic normals ----
+  function roundedBox(size, radius){
+    const SEG = 8, h = size / 2, flat = (h - radius) / h;
+    const MAP = [-1, -0.97, -0.89, -flat, 0, flat, 0.89, 0.97, 1];      // denser grid near the edges
+    const g = new THREE.BoxGeometry(size, size, size, SEG, SEG, SEG);
+    const pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv;
+    const v = new THREE.Vector3(), inner = new THREE.Vector3(), n = new THREE.Vector3();
+    const remap = c => h * MAP[Math.round((c / h + 1) * SEG / 2)];
+    const remapUv = t => (MAP[Math.round(t * SEG)] + 1) / 2;
+    for (let i = 0; i < pos.count; i++){
+      v.set(remap(pos.getX(i)), remap(pos.getY(i)), remap(pos.getZ(i)));
+      inner.set(Math.max(-h + radius, Math.min(h - radius, v.x)), Math.max(-h + radius, Math.min(h - radius, v.y)), Math.max(-h + radius, Math.min(h - radius, v.z)));
+      n.subVectors(v, inner);
+      if (n.lengthSq() < 1e-12) n.set(nor.getX(i), nor.getY(i), nor.getZ(i)); else n.normalize();
+      v.copy(inner).addScaledVector(n, radius);
+      pos.setXYZ(i, v.x, v.y, v.z); nor.setXYZ(i, n.x, n.y, n.z);
+      uv.setXY(i, remapUv(uv.getX(i)), remapUv(uv.getY(i)));
+    }
+    return g;
+  }
+  // Face art: cream gradient (#FFF9EE → #EAD9BE) with dark pips (#2A211C), one texture per value.
+  // BoxGeometry material order: +X, -X, +Y, -Y, +Z, -Z → values 2, 5, 3, 4, 1, 6 (opposites total seven).
+  const PIPS = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [-1, 1], [1, -1], [1, 1]], 5: [[-1, -1], [-1, 1], [0, 0], [1, -1], [1, 1]], 6: [[-1, -1], [-1, 0], [-1, 1], [1, -1], [1, 0], [1, 1]] };
+  function faceTexture(value){
+    const S = 256, c = document.createElement('canvas'); c.width = c.height = S;
+    const x = c.getContext('2d');
+    const gr = x.createLinearGradient(0, 0, S * 0.35, S); gr.addColorStop(0, '#FFF9EE'); gr.addColorStop(1, '#EAD9BE');
+    x.fillStyle = gr; x.fillRect(0, 0, S, S);
+    const step = S * 0.25, r = S * 0.082;
+    for (const [u, w] of PIPS[value]){
+      const cx = S / 2 + u * step, cy = S / 2 - w * step;
+      x.fillStyle = 'rgba(255,255,255,0.55)'; x.beginPath(); x.arc(cx, cy + r * 0.16, r * 1.04, 0, Math.PI * 2); x.fill(); // soft lower rim
+      x.fillStyle = '#2A211C'; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill();
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    return t;
+  }
+  const FACE_ORDER = [2, 5, 3, 4, 1, 6];
+  const faceMats = FACE_ORDER.map(val => new THREE.MeshStandardMaterial({ map: faceTexture(val), roughness: 0.55, metalness: 0 }));
+  const dieGeo = roundedBox(SIZE, 0.13);
+  // Held ring: rounded square slightly bigger than the die, behind it, in the player colour.
+  function roundedSquare(s, r){
+    const sh = new THREE.Shape(), a = s / 2;
+    sh.moveTo(-a + r, -a); sh.lineTo(a - r, -a); sh.quadraticCurveTo(a, -a, a, -a + r); sh.lineTo(a, a - r); sh.quadraticCurveTo(a, a, a - r, a);
+    sh.lineTo(-a + r, a); sh.quadraticCurveTo(-a, a, -a, a - r); sh.lineTo(-a, -a + r); sh.quadraticCurveTo(-a, -a, -a + r, -a);
+    return new THREE.ShapeGeometry(sh, 6);
+  }
+  const ringGeo = roundedSquare(SIZE + 0.28, 0.3), glowGeo = roundedSquare(SIZE + 0.56, 0.44);
+  // Contact shadow: radial blob under/behind each die.
+  const shadowTex = (function(){ const S = 128, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'); const g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(0.55, 'rgba(0,0,0,0.25)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, S, S); return new THREE.CanvasTexture(c); })();
+  const shadowGeo = new THREE.PlaneGeometry(SIZE * 1.9, SIZE * 1.9);
+
+  const FACES = [[1, 0, 0, 1], [6, 0, 0, -1], [2, 1, 0, 0], [5, -1, 0, 0], [3, 0, 1, 0], [4, 0, -1, 0]];
+  const dice = [];
+  for (let i = 0; i < 5; i++){
+    const holder = new THREE.Group();          // position (+ lift); never rotates
+    const cube = new THREE.Mesh(dieGeo, faceMats);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0 });
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0, depthWrite: false });
+    const ring = new THREE.Mesh(ringGeo, ringMat); ring.position.z = -1.2;
+    const glow = new THREE.Mesh(glowGeo, glowMat); glow.position.z = -1.3;
+    holder.add(glow, ring, cube);
+    const shadow = new THREE.Mesh(shadowGeo, new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+    shadow.renderOrder = -1;
+    scene.add(shadow, holder);
+    dice.push({ holder, cube, ring, glow, ringMat, glowMat, shadow, lift: 0 });
+  }
+
+  // ---- the 24 cube poses and the ones that show a given face to the camera (+Z) ----
+  const validPoses = [];
+  for (let x = 0; x < 4; x++) for (let y = 0; y < 4; y++) for (let z = 0; z < 4; z++){
+    const e = new THREE.Euler(x * Math.PI / 2, y * Math.PI / 2, z * Math.PI / 2), q = new THREE.Quaternion().setFromEuler(e);
+    if (validPoses.some(p => Math.abs(p.q.dot(q)) > 0.999999)) continue;
+    const front = FACES.find(f => new THREE.Vector3(f[1], f[2], f[3]).applyQuaternion(q).z > 0.999999)[0];
+    validPoses.push({ e: [e.x, e.y, e.z], q, front });
+  }
+  const choosePose = face => { const ps = validPoses.filter(p => p.front === face); return ps[Math.floor(Math.random() * ps.length)].e.slice(); };
+  const anchor = i => [(i - 2) * SPACING, ROW_Y, 0];
+  // Small jitter per roll for the moving dice; held dice keep their place. Neighbours stay > 2R apart.
+  function choosePositions(from, mask){
+    const base = from || [0, 1, 2, 3, 4].map(anchor);
+    for (let attempt = 0; attempt < 50; attempt++){
+      const to = base.map((p, i) => (mask && !mask[i]) ? p.slice() : [anchor(i)[0] + (Math.random() - 0.5) * 0.06, ROW_Y + (Math.random() - 0.5) * 0.08, 0]);
+      if (to.every((p, i) => i === 0 || p[0] - to[i - 1][0] > 2 * R + 0.002)) return to;
+    }
+    return base.map(p => p.slice());
+  }
+
+  // ---- state ----
+  let settlePending = false;
+  const motion = new window.DiceMotionCore.DiceMotion({
+    initial: [1, 2, 3, 4, 5].map(choosePose), frontFaces: [1, 2, 3, 4, 5], choosePose, choosePositions,
+    minSpinMs: MIN_SPIN_MS, durationMs: SETTLE_MS, randomFaces: false,
+    onTransition: s => { if (s.phase === 'idle') settlePending = true; dirty = true; },
+  });
+  let cur = null, lastRollId = null, held = [false, false, false, false, false], reduced = false, color = '#FFD166';
+  const tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler(), tmpV = new THREE.Vector3();
+  function shownFace(i){ // face currently pointing at the camera according to the motion angles
+    const a = motion.angles[i]; tmpQ.setFromEuler(tmpE.set(a[0], a[1], a[2]));
+    let best = 1, bz = -2;
+    for (const f of FACES){ const z = tmpV.set(f[1], f[2], f[3]).applyQuaternion(tmpQ).z; if (z > bz){ bz = z; best = f[0]; } }
+    return best;
+  }
+  const clampFace = v => { v = Math.round(Number(v)); return v >= 1 && v <= 6 ? v : 1; };
+
+  function update(msg){
+    if (typeof msg === 'string') { try { msg = JSON.parse(msg); } catch (e) { return; } }
+    if (!msg || (msg.type && msg.type !== 'dice') || !Array.isArray(msg.dice)) return;
+    const now = performance.now();
+    const faces = [0, 1, 2, 3, 4].map(i => clampFace(msg.dice[i]));
+    held = [0, 1, 2, 3, 4].map(i => !!(msg.held && msg.held[i]));
+    reduced = !!msg.reduced;
+    if (typeof msg.color === 'string' && msg.color) color = msg.color;
+    const shaking = !!msg.shaking && !reduced;
+    const rollId = msg.rollId == null ? 0 : msg.rollId;
+    const notHeld = held.map(h => !h);
+    dice.forEach(d => { d.ringMat.color.set(color); d.glowMat.color.set(color); });
+    dirty = true;
+    const first = cur === null;
+    const newRoll = !first && !!msg.rolled && rollId !== lastRollId;
+    cur = msg; lastRollId = rollId;
+
+    if (first || reduced){                       // at rest, no animation
+      if (first || motion.phase !== 'idle' || faces.some((f, i) => shownFace(i) !== f)) motion.snap(faces, now);
+      if (first && shaking) motion.setActive(true, now, notHeld);
+      return;
+    }
+    if (newRoll){
+      motion.setFrontFaces(faces);
+      if (motion.phase !== 'spinning' || !motion.active) { motion.setActive(false, now); motion.setActive(true, now, notHeld); }
+      motion.setActive(false, now);              // brakes once MIN_SPIN_MS of spin have passed
+    } else {
+      if (motion.phase !== 'braking') motion.setFrontFaces(faces);
+      if (shaking && !motion.active) motion.setActive(true, now, notHeld);
+      else if (!shaking && motion.active) motion.setActive(false, now);   // shake ended without a roll: stop on the shown dice
+    }
+    let snapped = false;
+    faces.forEach((f, i) => { if (!motion.moving(i) && shownFace(i) !== f) snapped = motion.snapDie(i, f) || snapped; }); // e.g. a new turn
+    if (snapped && motion.phase === 'idle') settlePending = true;
+  }
+  window.diceUpdate = update;
+  window.addEventListener('message', e => update(e.data));
+
+  // ---- frame loop: renders only while something moves ----
+  let last = performance.now(), frames = 0, statFrom = last, maxGap = 0;
+  function readFaces(){
+    scene.updateMatrixWorld(true);
+    let valid = true;
+    const faces = dice.map((d, i) => {
+      const vis = FACES.map(f => ({ face: f[0], z: tmpV.set(f[1], f[2], f[3]).transformDirection(d.cube.matrixWorld).z })).filter(f => f.z > 1e-6);
+      if (!(vis.length === 1 && vis[0].z > 1 - 1e-9)) valid = false;
+      return vis.length ? vis.sort((a, b) => b.z - a.z)[0].face : 0;
+    });
+    return { faces, valid };
+  }
+  function tick(now){
+    const dt = Math.min(0.1, Math.max(0, (now - last) / 1000)); maxGap = Math.max(maxGap, now - last); last = now;
+    const m = motion.advance(now);
+    let animating = m.phase !== 'idle';
+    const k = reduced ? 1 : 1 - Math.exp(-dt / 0.09);
+    dice.forEach((d, i) => {
+      const target = held[i] ? 1 : 0;
+      if (Math.abs(d.lift - target) > 1e-3){ d.lift += (target - d.lift) * k; animating = true; } else d.lift = target;
+      const p = m.positions[i], r = m.rotations[i];
+      d.cube.rotation.set(r[0], r[1], r[2]);
+      d.holder.position.set(p[0], p[1] + d.lift * LIFT, p[2]);
+      d.ringMat.opacity = d.lift; d.glowMat.opacity = d.lift * 0.28;
+      d.ring.visible = d.glow.visible = d.lift > 0.01;
+      d.shadow.position.set(p[0] + 0.1, p[1] - 0.16, -2);
+      const s = 1 + d.lift * 0.12; d.shadow.scale.set(s, s, 1); d.shadow.material.opacity = 1 - d.lift * 0.35;
+    });
+    if (animating || dirty){
+      renderer.render(scene, camera); dirty = false; frames++;
+      if (settlePending && m.phase === 'idle'){
+        settlePending = false;
+        const r = readFaces();
+        dice3dPost({ type: 'settled', rollId: lastRollId, faces: r.faces, valid: r.valid && r.faces.every((f, i) => f === m.frontFaces[i]) });
+      }
+    }
+    if (DEBUG && now - statFrom > 5000){
+      if (frames > 1) dice3dPost({ type: 'stats', fps: Math.round(frames * 10000 / (now - statFrom)) / 10, maxGapMs: Math.round(maxGap), phase: m.phase });
+      frames = 0; statFrom = now; maxGap = 0;
+    }
+    requestAnimationFrame(tick);
+  }
+  fit();
+  requestAnimationFrame(t => { last = t; tick(t); });
+  dice3dPost({ type: 'ready' });
+  // The native bridge may attach late in some WebViews; a second 'ready' is harmless (same rollId = no-op).
+  addEventListener('load', () => { if (!cur) dice3dPost({ type: 'ready' }); });
+} catch (e) {
+  window.diceUpdate = function(){};
+  dice3dPost({ type: 'error', message: String(e && e.message || e) });
+}
+})();
+</script>
+</body>
+</html>

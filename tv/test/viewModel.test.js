@@ -39,3 +39,33 @@ test('turn view: active player, potentials and totals', () => {
   expect(gen.cells[0].text).toBe('50');
   expect(v.rows[v.rows.length - 1].key).toBe('total');
 });
+
+test('3D dice input: held only after a roll, rollKey per roll, shaking with local staleness', () => {
+  let g = game();
+  g = E.rollDice(g, 'a', () => 0.5).state;
+  g = { ...g, hand: { ...g.hand, held: [true, false, false, false, false] } };
+  const v = computeVals({ ...tv, now: 1000 }, g);
+  expect(v.dice3d.held).toEqual([true, false, false, false, false]);
+  expect(v.dice3d.rolled).toBe(true);
+  expect(v.dice3d.color).toBe(E.COLORS[0]);
+  expect(v.dice3d.rollKey).toBe('1:0:1');
+  expect(v.shaking).toBe(false);
+  const fresh = computeVals({ ...tv, now: 1000 }, game());
+  expect(fresh.dice3d.held).toEqual([false, false, false, false, false]);
+  const sh = { ...g, hand: { ...g.hand, shaking: true, shakeTs: 5 } };
+  expect(computeVals({ ...tv, lang: 'en', now: 2000 }, sh).statusLabel).toBe('Shaking…');
+  expect(computeVals({ ...tv, now: 9000 }, sh).dice3d.shaking).toBe(true);
+  expect(computeVals({ ...tv, now: 10001 }, sh).dice3d.shaking).toBe(false); // 8 s after this TV first saw it
+});
+
+test('potentials wait for the 3D dice to land (settled or timeout)', () => {
+  let g = game();
+  g = E.rollDice(g, 'a', () => 0.99).state;
+  const base = { ...tv, lang: 'en', dice3d: true };
+  const gen = v => v.rows.find(r => r.key === 'generala').cells[0].text;
+  expect(computeVals({ ...base, now: 50000 }, g).landing).toBe(true);
+  expect(gen(computeVals({ ...base, now: 50000 }, g))).toBe('');
+  expect(computeVals({ ...base, now: 50000 }, g).servidaVisible).toBe(false);
+  expect(gen(computeVals({ ...base, now: 50000, landedKey: '1:0:1' }, g))).toBe('50');
+  expect(gen(computeVals({ ...base, now: 56600 }, g))).toBe('50'); // safety net
+});

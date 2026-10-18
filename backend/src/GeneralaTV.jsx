@@ -1,5 +1,6 @@
 import React from 'react';
 import qrcode from 'qrcode-generator';
+import Dice3D from './Dice3D.jsx';
 
 const PIPS = { 1:[4], 2:[0,8], 3:[0,4,8], 4:[0,2,6,8], 5:[0,2,4,6,8], 6:[0,2,3,5,6,8] };
 const RING = '0 0 0 6px #FFD166, 0 0 0 12px rgba(255,209,102,.3)';
@@ -23,9 +24,9 @@ function qr(text){
   qrCache[text] = el; return el;
 }
 
-function dieVM(v, held, rolled, rollId, color, reduced, lift){
+function dieVM(v, held, rolled, rollId, color, reduced, lift, shaking){
   const pips = [0,1,2,3,4,5,6,7,8].map(i => PIPS[v].includes(i) ? 1 : 0);
-  const anim = (!rolled || held || reduced) ? 'none' : ((rollId % 2 ? 'tumbleA' : 'tumbleB') + ' .55s ease-out');
+  const anim = (shaking && !held && !reduced) ? 'tumbleLoopA .6s linear infinite' : (!rolled || held || reduced) ? 'none' : ((rollId % 2 ? 'tumbleA' : 'tumbleB') + ' .55s ease-out');
   return { v, pips, held, ring: held ? color : 'transparent', lift: held ? -lift : 0, anim, tagColor: color, tagOp: held ? 1 : 0 };
 }
 
@@ -97,15 +98,20 @@ function computeVals(P){
   const lastEv = [...tv.feed].reverse().map(ev => P.feedText(ev)).find(Boolean);
   vals.feedVisible = !!(g.narrator && !tv.muted && lastEv); vals.feedText = lastEv || '';
   const rollsLabel = h => h.rollsLeft === 0 ? t('no_rolls') : h.rollsLeft === 1 ? t('rolls_left_one') : t('rolls_left', { n: h.rollsLeft });
-  const statusOf = h => h.done ? t('ready') : (h.rolled && h.rollsLeft === 0) ? t('choosing') : h.rolled ? t('rolling') : t('waiting_roll');
+  const now = Date.now();
+  const statusOf = h => h.done ? t('ready') : E.isShaking(h, now) ? t('shaking') : (h.rolled && h.rollsLeft === 0) ? t('choosing') : h.rolled ? t('rolling') : t('waiting_roll');
   const cats = E.VARIANTS[g.variant].cats;
   if (g.mode === 'turns' && g.phase === 'playing') {
     const ap = players[g.activeIdx] || players[0]; const h = g.hand;
     vals.active = { color: ap.color, initial: initial(ap.name) };
     vals.turnLabel = t('turn_of', { name: ap.name }); vals.statusLabel = statusOf(h); vals.rollsLabel = rollsLabel(h);
     vals.rollDots = [0,1,2].map(i => i < h.rollsLeft ? ap.color : '#4A3B35');
-    vals.dice = h.dice.map((v, i) => dieVM(v, h.held[i] && h.rolled, h.rolled, h.rollId || 0, ap.color, reduced, 14));
-    vals.servidaVisible = g.variant === 'generala' && h.rolled && h.rollsLeft === 2;
+    const shaking = E.isShaking(h, now);
+    vals.shaking = shaking; vals.statusColor = shaking ? '#FFD166' : '#D9C7B0'; vals.statusAnim = shaking ? pulseAnim : 'none';
+    vals.dice = h.dice.map((v, i) => dieVM(v, h.held[i] && h.rolled, h.rolled, h.rollId || 0, ap.color, reduced, 14, shaking));
+    // 3D view input (docs/ARCHITECTURE.md); rollKey → int rollId inside Dice3D
+    vals.dice3d = { dice: h.dice, held: h.held.map(x => !!x && h.rolled), rolled: h.rolled, rollKey: [g.round, g.activeIdx, h.rollId || 0].join('|'), shaking, color: ap.color, reduced: !!reduced };
+    vals.servidaVisible = g.variant === 'generala' && h.rolled && h.rollsLeft === 2 && !tv.settling;
     const pot = E.handPotential(g, ap.id);
     vals.cols = players.map(p => ({ key: p.id, name: p.name, color: p.color, initial: initial(p.name), ring: p.id === ap.id ? '#1E1715' : 'transparent' }));
     const size = g.variant === 'yahtzee' ? 17 : 19;
@@ -113,6 +119,7 @@ function computeVals(P){
     const cellFor = (p, c) => {
       const v = p.sheet[c];
       if (v !== undefined) return { text: String(v), color: v === 0 ? '#B9A48C' : '#1E1715', weight: 800 };
+      if (p.id === ap.id && pot && tv.settling) return { text: '…', color: '#C9B99F', weight: 600 }; // 3D dice still landing
       if (p.id === ap.id && pot) { const s = pot.scores[c]; if (s === null) return { text: '—', color: '#C9B99F', weight: 600 }; return { text: String(s), color: accent, weight: 700 }; }
       return { text: '', color: '#1E1715', weight: 600 };
     };
@@ -133,7 +140,7 @@ function computeVals(P){
       const pot = E.handPotential(g, p.id);
       const rows = cats.map(c => { const label = cat(g.variant, c); const v = p.sheet[c]; if (v !== undefined) return { key: c, label, text: String(v), color: v === 0 ? '#8F7D6A' : '#FFF3DF', weight: 800, bg: 'transparent' }; const s = pot && !done ? pot.scores[c] : undefined; if (s === null) return { key: c, label, text: '—', color: '#5A4A42', weight: 600, bg: 'transparent' }; if (s !== undefined) return { key: c, label, text: String(s), color: s === 0 ? '#8F7D6A' : '#FFD166', weight: 700, bg: pot.forced === c ? 'rgba(255,209,102,.18)' : 'transparent' }; return { key: c, label, text: '', color: '#B9A48C', weight: 600, bg: 'transparent' }; });
       return { key: p.id, rows, name: p.name, color: p.color, initial: initial(p.name), status: statusOf(h), statusBg: done ? '#9BD69B' : (h.rolled ? '#FFD166' : '#4A3B35'), statusFg: done || h.rolled ? '#1E1715' : '#FFF3DF', opacity: done ? .78 : 1,
-        dice: h.dice.map((v, i) => dieVM(v, h.held[i] && h.rolled, h.rolled, h.rollId || 0, p.color, reduced, 6)), rollsLabel: done ? t('waiting_rest') : rollsLabel(h), progress: filled + ' / ' + rounds, pct: Math.round(filled / rounds * 100), total: E.totals(g.variant, p).total };
+        dice: h.dice.map((v, i) => dieVM(v, h.held[i] && h.rolled, h.rolled, h.rollId || 0, p.color, reduced, 6, E.isShaking(h, now))), rollsLabel: done ? t('waiting_rest') : rollsLabel(h), progress: filled + ' / ' + rounds, pct: Math.round(filled / rounds * 100), total: E.totals(g.variant, p).total };
     });
   }
   if (g.phase === 'results') {
@@ -273,10 +280,12 @@ export default function GeneralaTV({ tv }){
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 18, background: '#2B2320', borderRadius: 24, padding: '18px 24px', borderLeft: `14px solid ${v.active.color}` }}>
                   <div style={{ width: 68, height: 68, borderRadius: '50%', background: v.active.color, display: 'grid', placeItems: 'center', fontFamily: fredoka, fontWeight: 700, fontSize: 36, color: '#1E1715' }}>{v.active.initial}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}><span style={{ fontSize: 34, fontWeight: 800, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.turnLabel}</span><span style={{ fontSize: 20, color: '#D9C7B0', fontWeight: 700 }}>{v.statusLabel}</span></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}><span style={{ fontSize: 34, fontWeight: 800, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.turnLabel}</span><span data-status={v.shaking ? 'shaking' : ''} style={{ fontSize: 20, color: v.statusColor, fontWeight: 700, animation: v.statusAnim }}>{v.shaking ? '🎲 ' : ''}{v.statusLabel}</span></div>
                   <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}><span style={{ fontSize: 20, fontWeight: 800, color: '#D9C7B0' }}>{v.rollsLabel}</span><div style={{ display: 'flex', gap: 8 }}>{v.rollDots.map((d, i) => <i key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: d }} />)}</div></div>
                 </div>
-                <div style={{ flex: 1, background: '#24201B', borderRadius: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, position: 'relative', overflow: 'hidden', backgroundImage: 'radial-gradient(ellipse at 50% 120%, #3A2F28 0%, transparent 60%)' }}>
+                <div style={{ flex: 1, background: '#24201B', borderRadius: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, paddingBottom: 18, position: 'relative', overflow: 'hidden', backgroundImage: 'radial-gradient(ellipse at 50% 120%, #3A2F28 0%, transparent 60%)' }}>
+                  <div style={{ alignSelf: 'stretch', flex: 1, minHeight: 0 }}>
+                    <Dice3D msg={v.dice3d} onStatus={tv.onDice3d} fallback={(
                   <div style={{ display: 'flex', gap: 22, alignItems: 'flex-end', height: 150 }}>
                     {v.dice.map((d, i) => (
                       <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, transform: `translateY(${d.lift}px)`, transition: 'transform .2s' }}>
@@ -286,6 +295,8 @@ export default function GeneralaTV({ tv }){
                         <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: d.tagColor, opacity: d.tagOp }}>✓ {T.hold_tag}</span>
                       </div>
                     ))}
+                  </div>
+                    )} />
                   </div>
                   <div style={{ fontSize: 19, color: '#8F7D6A', fontWeight: 700 }}>{T.hold_hint}</div>
                   {v.servidaVisible && <div style={{ position: 'absolute', top: 18, right: 22, background: '#FFD166', color: '#1E1715', borderRadius: 999, padding: '6px 16px', fontWeight: 800, fontSize: 18 }}>{T.served}</div>}

@@ -13,9 +13,21 @@ target = "1.2"
 [[needs.module]]
 id = "/com.amazon.vega.os@IVega_1_2"
 
+# WebView (3D dice, src/ui/Dice3D.js)
+[[needs.module]]
+id = "/com.amazon.kepler.keplerscript_4@IKeplerScript_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.webview_4@IWebview_4"
+
 [components]
 [[components.interactive]]
 id = "com.generalashake.tv.main"
 runtime-module = "/com.amazon.kepler.runtime.react_native_kepler_4@IReactNativeKepler_0"
 launch-type = "singleton"
 categories = ["com.amazon.category.main"]
+
+[wants]
+# Web renderer service for the WebView (3D dice)
+[[wants.service]]
+id = "com.amazon.webview.renderer_service"

@@ -185,3 +185,46 @@ test('concurrent joins all land (optimistic concurrency + retry)', async () => {
   assert.equal(s.players.length, 4);
   for (const x of res) assert.equal((await play(r.code, x.data.playerToken, 'ping')).status, 200);
 });
+
+test('shake: on/off, validation, turn checks, roll clears it, noRolls', async () => {
+  const r = await room({ mode: 'turns' });
+  const a = ok(await join(r.code, 'Ana')); const b = ok(await join(r.code, 'Beto'));
+  assert.equal((await play(r.code, a.playerToken, 'shake', { active: true })).data.error, 'notPlaying');
+  let s = ok(await host(r.code, r.hostToken, 'start')).state;
+  assert.equal(s.hand.shaking, false);
+  const toks = { [a.playerId]: a.playerToken, [b.playerId]: b.playerToken };
+  const act = toks[s.players[s.activeIdx].id], idle = toks[s.players[1 - s.activeIdx].id];
+  assert.equal((await play(r.code, act, 'shake')).data.error, 'badRequest');
+  assert.equal((await play(r.code, act, 'shake', { active: 'yes' })).status, 400);
+  assert.equal((await play(r.code, idle, 'shake', { active: true })).data.error, 'notYourTurn');
+  const t0 = Date.now();
+  s = ok(await play(r.code, act, 'shake', { active: true })).state;
+  assert.equal(s.hand.shaking, true); assert.ok(s.hand.shakeTs >= t0);
+  assert.equal(E.isShaking(s.hand, s.hand.shakeTs + 1000), true);
+  assert.equal(E.isShaking(s.hand, s.hand.shakeTs + 8001), false, 'stale shake ignored by viewers');
+  assert.equal(s.events.length, 0, 'shake adds no narrator event');
+  s = ok(await play(r.code, act, 'shake', { active: false })).state; assert.equal(s.hand.shaking, false);
+  s = ok(await play(r.code, act, 'shake', { active: true })).state; assert.equal(s.hand.shaking, true);
+  s = ok(await play(r.code, act, 'roll')).state;
+  assert.equal(s.hand.shaking, false); assert.equal(s.hand.rollId, 1); assert.ok(s.hand.shakeTs >= t0);
+  ok(await play(r.code, act, 'roll')); ok(await play(r.code, act, 'roll'));
+  const no = await play(r.code, act, 'shake', { active: true }); assert.equal(no.status, 409); assert.equal(no.data.error, 'noRolls');
+  assert.equal(E.DICE_SETTLE_MS, 5000); assert.equal(E.MIN_SPIN_MS, 350);
+});
+
+test('shake in simultaneous mode is per hand', async () => {
+  const r = await room({ mode: 'simul' });
+  const a = ok(await join(r.code, 'Ana')); const b = ok(await join(r.code, 'Beto'));
+  let s = ok(await host(r.code, r.hostToken, 'start')).state;
+  assert.ok(Object.values(s.hands).every(h => h.shaking === false));
+  s = ok(await play(r.code, a.playerToken, 'shake', { active: true })).state;
+  assert.equal(s.hands[a.playerId].shaking, true); assert.equal(s.hands[b.playerId].shaking, false);
+  s = ok(await play(r.code, b.playerToken, 'shake', { active: true })).state;
+  assert.equal(s.hands[a.playerId].shaking, true); assert.equal(s.hands[b.playerId].shaking, true);
+  s = ok(await play(r.code, a.playerToken, 'roll')).state;
+  assert.equal(s.hands[a.playerId].shaking, false); assert.equal(s.hands[b.playerId].shaking, true);
+  assert.equal(s.hands[a.playerId].rollId, 1); assert.equal(s.hands[b.playerId].rolled, false);
+  // a player who already scored this round can't shake
+  s = ok(await play(r.code, a.playerToken, 'choose', { cat: E.VARIANTS.generala.cats.find(c => E.handPotential(s, a.playerId).scores[c] != null) })).state;
+  assert.equal((await play(r.code, a.playerToken, 'shake', { active: true })).data.error, 'alreadyDone');
+});

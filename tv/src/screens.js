@@ -3,6 +3,8 @@ import React from 'react';
 import { View } from 'react-native';
 import { C, Txt, FButton, Avatar, Pill, Die, Narrator, QR } from './ui/components';
 import { sx, px } from './ui/scale';
+import { Dice3D } from './ui/Dice3D';
+import { DICE3D_ENABLED } from './config';
 
 const eyebrow = { fontSize: 20, fontWeight: '800', letterSpacing: 2, color: C.muted };
 const ghostBtn = { borderWidth: 3, borderColor: '#5A4A42', borderRadius: 999, paddingVertical: 17, paddingHorizontal: 30, alignItems: 'center', justifyContent: 'center' };
@@ -206,8 +208,20 @@ function SheetTable({ v }){
   );
 }
 
-function TurnsBoard({ v }){
+function TurnsBoard({ v, on }){
   const { T } = v;
+  // 3D dice (WebView) with the 2D row as loading/failure fallback. The 3D view rings and lifts held dice itself.
+  const use3d = DICE3D_ENABLED && !!v.dice3d;
+  const diceRow = (
+    <View style={sx({ flexDirection: 'row', gap: 22, alignItems: 'flex-end', height: 150, paddingTop: 14 })}>
+      {v.dice.map(d => (
+        <View key={d.key} style={sx({ alignItems: 'center', gap: 8 })}>
+          <Die value={d.v} held={d.held} ring={d.ring} lift={d.held ? 14 : 0} rollKey={d.rollKey} reduced={v.reduced} />
+          <Txt style={{ fontSize: 15, fontWeight: '800', letterSpacing: 1, color: d.ring || C.muted, opacity: d.held ? 1 : 0 }}>{'✓ ' + T.hold_tag.toUpperCase()}</Txt>
+        </View>
+      ))}
+    </View>
+  );
   return (
     <View style={sx({ flex: 1, flexDirection: 'row', gap: 28 })}>
       <View style={sx({ flex: 1, gap: 18 })}>
@@ -224,15 +238,8 @@ function TurnsBoard({ v }){
             </View>
           </View>
         </View>
-        <View style={sx({ flex: 1, backgroundColor: C.table, borderRadius: 28, alignItems: 'center', justifyContent: 'center', gap: 22, overflow: 'hidden' })}>
-          <View style={sx({ flexDirection: 'row', gap: 22, alignItems: 'flex-end', height: 150, paddingTop: 14 })}>
-            {v.dice.map(d => (
-              <View key={d.key} style={sx({ alignItems: 'center', gap: 8 })}>
-                <Die value={d.v} held={d.held} ring={d.ring} lift={d.held ? 14 : 0} rollKey={d.rollKey} reduced={v.reduced} />
-                <Txt style={{ fontSize: 15, fontWeight: '800', letterSpacing: 1, color: d.ring || C.muted, opacity: d.held ? 1 : 0 }}>{'✓ ' + T.hold_tag.toUpperCase()}</Txt>
-              </View>
-            ))}
-          </View>
+        <View style={sx({ flex: 1, backgroundColor: C.table, borderRadius: 28, alignItems: 'center', justifyContent: 'center', gap: 22, overflow: 'hidden' }, use3d ? { gap: 0, paddingBottom: 20 } : null)}>
+          {use3d ? <Dice3D msg={v.dice3d} onSettled={on.diceSettled} bgColor={C.table} style={sx({ alignSelf: 'stretch', flex: 1, marginTop: 12 })} fallback={diceRow} /> : diceRow}
           <Txt style={{ fontSize: 19, color: C.faint, fontWeight: '700' }}>{T.hold_hint}</Txt>
           {v.servidaVisible ? (
             <View style={sx({ position: 'absolute', top: 18, right: 22 })}><Pill bg={C.focus} size={18} padH={16} padV={6}>{T.served}</Pill></View>
@@ -291,7 +298,8 @@ export function Playing({ v, on }){
   const { T } = v;
   const barFocusable = !v.isPaused;
   const bar = (id, label, preferred) => (
-    <FButton onPress={on[id]} focusable={barFocusable} preferred={preferred && barFocusable} testID={id} style={pillBtn}>
+    // blockDown: the 3D dice WebView below is a native focus target on Vega even with focusable={false}
+    <FButton onPress={on[id]} focusable={barFocusable} preferred={preferred && barFocusable} testID={id} style={pillBtn} blockDown={!!v.dice3d}>
       <Txt style={pillTxt}>{label}</Txt>
     </FButton>
   );
@@ -310,7 +318,7 @@ export function Playing({ v, on }){
           {bar('lang', v.langToggle)}
         </View>
       </View>
-      {v.isTurns && v.active ? <TurnsBoard v={v} /> : null}
+      {v.isTurns && v.active ? <TurnsBoard v={v} on={on} /> : null}
       {v.isSimul && v.panels ? <SimulBoard v={v} /> : null}
       {v.dcVisible ? (
         <View pointerEvents="none" style={sx({ position: 'absolute', top: 84, left: 0, right: 0, alignItems: 'center' })}>

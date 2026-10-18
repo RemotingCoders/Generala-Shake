@@ -39,7 +39,7 @@ function computeVals(ph){
   const errMap = { notfound: 'err_notfound', full: 'err_full', expired: 'err_expired', closed: 'err_closed', started: 'err_started' };
   const on = {
     lang: () => act('lang'), code: e => act('code', e.target.value), name: e => act('name', e.target.value), find: () => act('find'), manual: () => act('manual'), join: () => act('join'), clearError: () => act('clearError'),
-    motionAllow: () => act('motionAllow'), motionSkip: () => act('motionSkip'), rules: () => act('rules'), tabDice: () => act('tab', 'dice'), tabSheet: () => act('tab', 'sheet'), roll: () => act('roll'), confirm: () => act('confirm'), confirmZeroYes: () => act('confirm', true), cancelZero: () => act('cancelZero'), reconnect: () => act('reconnect'),
+    motionAllow: () => act('motionAllow'), motionSkip: () => act('motionSkip'), rules: () => act('rules'), tabDice: () => act('tab', 'dice'), tabSheet: () => act('tab', 'sheet'), roll: () => act('roll'), rollDown: e => act('rollDown', e), rollUp: e => act('rollUp', e), rollCancel: e => act('rollCancel', e), rollClick: e => act('rollClick', e), noMenu: e => e.preventDefault(), confirm: () => act('confirm'), confirmZeroYes: () => act('confirm', true), cancelZero: () => act('cancelZero'), reconnect: () => act('reconnect'),
   };
   const vals = { T, s, on, accent, variantName, modeName, hasGame: !!g && !g.closed, langToggle: lang === 'es' ? 'ES · EN' : 'EN · ES', codeDraft: ph.codeDraft, nameDraft: ph.nameDraft,
     hasError: !!ph.error, errorText: errKey ? t(errMap[errKey] || 'err_notfound') : '', roomCode: g ? g.roomCode : '', roomLabel: g ? t('room_label', { code: g.roomCode }) : '',
@@ -68,28 +68,41 @@ function computeVals(ph){
     vals.sheetBadge = '';
     vals.rollsLabel = h.rollsLeft === 0 ? t('no_rolls') : h.rollsLeft === 1 ? t('rolls_left_one') : t('rolls_left', { n: h.rollsLeft });
     vals.rollDots = [0,1,2].map(i => i < h.rollsLeft ? me.color : '#D9C7B0');
-    vals.dice = h.dice.map((v, i) => { const held = h.held[i] && h.rolled; return { pips: [0,1,2,3,4,5,6,7,8].map(k => PIPS[v].includes(k) ? 1 : 0), ring: held ? me.color : 'transparent', lift: held ? -8 : 0, tagColor: me.color, tagOp: held ? 1 : 0, anim: (!h.rolled || held || reduced) ? 'none' : (((h.rollId||0) % 2 ? 'tumbleA' : 'tumbleB') + ' .55s ease-out'), toggle: () => h.rolled && act('hold', i) }; });
-    vals.diceOpacity = h.rolled ? 1 : .45;
-    vals.diceHint = h.rolled ? t('tap_to_hold') : (ph.motion === 'granted' ? t('motion_on') : ' ');
-    vals.servidaVisible = variant === 'generala' && h.rolled && h.rollsLeft === 2;
-    const canRoll = h.rollsLeft > 0 && !ph.busy;
+    // live shake / reveal sync: while shaking, rolling or landing (DICE_SETTLE_MS) the non-held dice tumble with hidden values
+    const tumbling = ph.shaking || ph.rolling || ph.settling;
+    const hidden = ph.rolling || ph.settling; // new values exist but aren't revealed yet
+    const reveal = !hidden;
+    vals.dice = h.dice.map((v, i) => {
+      const held = h.held[i] && h.rolled; const spin = tumbling && !held;
+      return { pips: [0,1,2,3,4,5,6,7,8].map(k => PIPS[v].includes(k) && !spin ? 1 : 0), ring: held ? me.color : 'transparent', lift: held ? -8 : 0, tagColor: me.color, tagOp: held ? 1 : 0,
+        key: spin ? 'spin' : 'still' + (h.rollId || 0), opacity: spin ? .8 : 1,
+        anim: spin ? (reduced ? 'none' : `${i % 2 ? 'tumbleLoopA' : 'tumbleLoopB'} ${.5 + i * .06}s linear infinite`) : (!h.rolled || held || reduced) ? 'none' : (((h.rollId||0) % 2 ? 'tumbleA' : 'tumbleB') + ' .55s ease-out'),
+        toggle: () => h.rolled && reveal && !ph.shaking && act('hold', i) };
+    });
+    vals.diceOpacity = h.rolled || tumbling ? 1 : .45;
+    vals.diceHint = ph.settling || ph.rolling ? t('settling') : ph.shaking ? t('shaking') : h.rolled ? t('tap_to_hold') : ' ';
+    vals.servidaVisible = variant === 'generala' && h.rolled && h.rollsLeft === 2 && reveal;
+    const canRoll = h.rollsLeft > 0 && !ph.busy && !hidden;
     vals.rollBg = canRoll ? me.color : '#D9C7B0'; vals.rollFg = '#1E1715';
-    vals.rollLabel = ph.busy ? t('processing') : h.rollsLeft === 0 ? t('no_rolls') : h.rolled ? '🎲 ' + t('roll_again') : '🎲 ' + t('roll');
-    vals.shakeVisible = ph.motion === 'granted' && canRoll;
-    vals.goSheetVisible = h.rolled;
+    vals.rollLabel = ph.shaking ? '🎲 ' + t('shaking') : hidden ? t('settling') : ph.busy ? t('processing') : h.rollsLeft === 0 ? t('no_rolls') : h.rolled ? '🎲 ' + t('roll_again') : '🎲 ' + t('roll');
+    vals.rollScale = ph.shaking ? .97 : 1;
+    vals.shakeVisible = ph.motion === 'granted' && h.rollsLeft > 0; vals.shakeVis = canRoll && !ph.shaking ? 'visible' : 'hidden';
+    vals.shakeHintText = t('hold_to_shake');
+    vals.goSheetVisible = h.rolled; vals.goSheetVis = reveal && !ph.shaking ? 'visible' : 'hidden'; // keep its space: no layout jump while landing
     const pot = E.handPotential(g, me.id);
     const cats = E.VARIANTS[variant].cats;
     vals.sheet = cats.map(c => {
       const used = me.sheet[c] !== undefined; const score = pot ? pot.scores[c] : null; const locked = !used && (score === null || score === undefined);
       const forced = pot && pot.forced === c; const selected = ph.pick === c;
+      if (hidden && !used) return { key: c, label: cat(variant, c), pick: () => {}, opacity: .6, bg: '#fff', border: '#E3D6C0', deco: 'none', sub: '', score: '…', scoreColor: '#B9A48C' };
       return { key: c, label: cat(variant, c), pick: () => (!used && !locked) && act('pick', c), opacity: used ? .55 : locked ? .5 : 1,
         bg: selected ? me.color : used ? '#F1E6D2' : '#fff', border: selected ? me.color : forced ? '#FFD166' : '#E3D6C0', deco: used ? 'line-through' : 'none',
         sub: used ? t('used') : forced ? t('forced') : locked ? (h.rolled ? t('locked') : '') : '', score: used ? String(me.sheet[c]) : (score === null || score === undefined) ? '—' : String(score), scoreColor: used ? '#8A7A6A' : (score === 0 ? '#B9A48C' : '#1E1715') };
     });
     if (variant === 'yahtzee') { const tt = E.totals('yahtzee', me); vals.bonusVisible = true; vals.bonusText = t('upper_sum') + ' ' + tt.upper + ' / 63 · ' + t('upper_bonus') + ' ' + (tt.upperBonus ? '+35' : '0') + (tt.yBonus ? ' · ' + t('yahtzee_bonus') + ' +' + tt.yBonus : ''); }
-    const pickOk = ph.pick && pot && pot.scores[ph.pick] !== null && pot.scores[ph.pick] !== undefined;
+    const pickOk = !hidden && ph.pick && pot && pot.scores[ph.pick] !== null && pot.scores[ph.pick] !== undefined;
     vals.confirmBg = pickOk ? '#1E1715' : '#D9C7B0'; vals.confirmFg = pickOk ? '#FFF3DF' : '#8A7A6A';
-    vals.confirmLabel = pickOk ? t('confirm') + ' · ' + cat(variant, ph.pick) + ' · ' + t('pts', { n: pot.scores[ph.pick] }) : (h.rolled ? t('choose_cat') : t('roll'));
+    vals.confirmLabel = pickOk ? t('confirm') + ' · ' + cat(variant, ph.pick) + ' · ' + t('pts', { n: pot.scores[ph.pick] }) : (hidden ? t('settling') : h.rolled ? t('choose_cat') : t('roll'));
     vals.confirmZeroTitle = ph.confirmZero ? t('confirm_zero_title', { cat: cat(variant, ph.confirmZero) }) : '';
     if (g.mode === 'simul') vals.simStatus = g.players.map(p => { const hh = g.hands[p.id]; return { key: p.id, name: p.name, color: p.color, initial: initial(p.name), status: hh.done ? t('ready') : (hh.rolled && hh.rollsLeft === 0) ? t('choosing') : t('rolling'), bg: hh.done ? '#9BD69B' : '#F1E6D2' }; });
   }
@@ -185,8 +198,8 @@ export default function GeneralaPhone({ phone }){
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontSize: 15, fontWeight: 800, color: '#6E6052' }}>{v.rollsLabel}</span><div style={{ display: 'flex', gap: 6 }}>{v.rollDots.map((d, i) => <i key={i} style={{ width: 12, height: 12, borderRadius: '50%', background: d }} />)}</div></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, padding: '22px 0 10px', flex: 1, alignItems: 'center', minWidth: 0, opacity: v.diceOpacity }}>
                   {v.dice.map((d, i) => (
-                    <button key={i} data-die={i} aria-pressed={d.tagOp === 1} onClick={d.toggle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', padding: 0, transform: `translateY(${d.lift}px)`, transition: 'transform .2s' }}>
-                      <span style={{ width: 50, height: 50, borderRadius: 13, background: dieFace, boxShadow: `inset 0 -4px 0 rgba(0,0,0,.08),0 10px 18px -10px rgba(0,0,0,.6),0 0 0 4px ${d.ring}`, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gridTemplateRows: 'repeat(3,1fr)', padding: 9, boxSizing: 'border-box', placeItems: 'center', animation: d.anim }}>
+                    <button key={i} data-die={i} data-hidden={d.pips.every(p => !p) ? 1 : 0} aria-pressed={d.tagOp === 1} onClick={d.toggle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', padding: 0, transform: `translateY(${d.lift}px)`, transition: 'transform .2s' }}>
+                      <span key={d.key} style={{ width: 50, height: 50, borderRadius: 13, background: dieFace, opacity: d.opacity, boxShadow: `inset 0 -4px 0 rgba(0,0,0,.08),0 10px 18px -10px rgba(0,0,0,.6),0 0 0 4px ${d.ring}`, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gridTemplateRows: 'repeat(3,1fr)', padding: 9, boxSizing: 'border-box', placeItems: 'center', animation: d.anim }}>
                         {d.pips.map((p, k) => <i key={k} style={{ width: 8, height: 8, borderRadius: '50%', background: '#2A211C', opacity: p }} />)}
                       </span>
                       <span style={{ fontSize: 11, fontWeight: 800, color: d.tagColor, opacity: d.tagOp, textTransform: 'uppercase', letterSpacing: '.04em' }}>✓</span>
@@ -195,9 +208,10 @@ export default function GeneralaPhone({ phone }){
                 </div>
                 <div style={{ textAlign: 'center', fontSize: 14, color: '#6E6052', fontWeight: 700, textWrap: 'pretty' }}>{v.diceHint}</div>
                 {v.servidaVisible && <div style={{ alignSelf: 'center', background: '#FFD166', borderRadius: 999, padding: '4px 12px', fontWeight: 800, fontSize: 13 }}>{T.served}</div>}
-                <button onClick={on.roll} style={{ background: v.rollBg, color: v.rollFg, border: 'none', borderRadius: 20, padding: 20, fontSize: 22, fontWeight: 800, minHeight: 68, boxShadow: '0 14px 24px -14px rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>{v.rollLabel}</button>
-                {v.shakeVisible && <div style={{ textAlign: 'center', fontSize: 13, color: '#8A7A6A', fontWeight: 700 }}>{T.shake_hint}</div>}
-                {v.goSheetVisible && <button onClick={on.tabSheet} style={{ ...outlineBtn, padding: 13 }}>{T.choose_cat} →</button>}
+                <button data-roll="1" onPointerDown={on.rollDown} onPointerUp={on.rollUp} onPointerCancel={on.rollCancel} onClick={on.rollClick} onContextMenu={on.noMenu}
+                  style={{ background: v.rollBg, color: v.rollFg, border: 'none', borderRadius: 20, padding: 20, fontSize: 22, fontWeight: 800, minHeight: 68, boxShadow: '0 14px 24px -14px rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', transform: `scale(${v.rollScale})`, transition: 'transform .15s' }}>{v.rollLabel}</button>
+                {v.shakeVisible && <div style={{ textAlign: 'center', fontSize: 13, color: '#8A7A6A', fontWeight: 700, visibility: v.shakeVis }}>{v.shakeHintText}</div>}
+                {v.goSheetVisible && <button onClick={on.tabSheet} style={{ ...outlineBtn, padding: 13, visibility: v.goSheetVis }}>{T.choose_cat} →</button>}
               </div>
             )}
 

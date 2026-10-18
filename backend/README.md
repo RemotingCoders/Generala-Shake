@@ -19,7 +19,13 @@ npm run build
 
 Sin variables de Supabase la API usa un store en memoria (se pierde al reiniciar, sin Realtime; los clientes hacen polling cada 1 s). En dev, el QR usa la IP de la red local en lugar de `localhost` para que el celular pueda abrirlo (misma Wi-Fi).
 
-Las reglas (`shared/engine.js`, `shared/i18n.js`) se editan en la carpeta `shared/` de la raíz y se copian con `node scripts/sync-shared.mjs` (o `npm run sync` desde `backend/`). No editar `backend/shared/` a mano.
+Las reglas (`shared/engine.js`, `shared/i18n.js`) y los dados 3D (`shared/dice3d/`) se editan en la carpeta `shared/` de la raíz y se copian con `node scripts/sync-shared.mjs` (o `npm run sync` desde `backend/`). No editar `backend/shared/` ni `backend/public/dice3d/` a mano.
+
+## Agitar y dados 3D
+
+- Celular: mantener apretado **Tirar** (o sacudir el celular, con el permiso de movimiento) manda `play {action:'shake', active:true}`; al soltar (o cuando el celular se queda quieto) manda `roll`. Un toque corto tira directo. La detección usa `ShakeDetector` de `shared/dice3d/motion-engine.js`.
+- Después de cada tirada el celular esconde los dados nuevos durante `DICE_SETTLE_MS` (5 s, el tiempo que tardan en caer en la TV); los dados guardados siguen a la vista. Recién ahí se puede guardar dados o anotar.
+- TV web (`/?surface=tv`): en modo por turnos los dados son la vista 3D `/dice3d/index.html` en un iframe; si no carga en 4 s o reporta error, vuelve a los dados 2D. El cartel del turno muestra "Agitando…".
 
 ## Variables de entorno
 

@@ -73,6 +73,25 @@ export const API_BASE_URL: string = LOCAL_API_BASE_URL;   // 'http://10.0.2.2:51
 Actualizaciones en vivo: polling de `GET /api/rooms/:code` cada 1000 ms (se ignoran estados con `seq` menor).
 No se usa Supabase Realtime en la tele.
 
+## Dados 3D
+
+En la partida por turnos, la bandeja muestra dados 3D (Three.js r170) dentro de un WebView
+(`@amazon-devices/webview` 4.0.2; el `manifest.toml` declara el módulo webview y el servicio
+`com.amazon.webview.renderer_service`).
+
+- La página es `assets/dice3d/` (`index.html`, `motion-engine.js`, `three.classic.js`): son **copias generadas** de
+  `shared/dice3d/` con `node scripts/sync-shared.mjs` (desde la raíz). No editarlas acá.
+- `src/ui/Dice3D.js` la alimenta con `window.diceUpdate({dice, held, rolled, rollId, shaking, color, reduced})`
+  (protocolo en `docs/ARCHITECTURE.md`, "3D dice view"). Mientras el jugador agita el celular los dados giran y el
+  estado dice "Agitando…"; con una tirada nueva frenan en 5 s sobre los valores del servidor. Los dados guardados
+  no giran: quedan levantados y con un marco del color del jugador. La planilla muestra los puntajes posibles recién
+  cuando los dados caen.
+- Si el WebView no carga (o no responde en 12 s) se usan los dados 2D de siempre. El modo simultáneo usa siempre 2D.
+- El WebView no toma el foco del control remoto (los botones de arriba tienen `nextFocusDown` hacia sí mismos).
+- Depuración: en `src/config.ts`, `DICE3D_DEBUG_URL = 'http://10.0.2.2:8766'` manda cada mensaje del WebView
+  (`ready`, `settled` con las caras leídas de la escena, `stats` con fps) a un receptor HTTP en la Mac.
+  `DICE3D_ENABLED = false` vuelve a los dados 2D.
+
 ## Control remoto (D-pad)
 
 | Tecla | Acción |

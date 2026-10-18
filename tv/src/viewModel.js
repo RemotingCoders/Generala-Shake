@@ -4,6 +4,27 @@
 import * as E from './shared/engine';
 import * as I from './shared/i18n';
 import { C } from './ui/components';
+import { TV_STR } from './strings';
+
+// Live shake of the active hand. Staleness (a phone that died mid-shake) is measured from the moment this TV
+// first saw that shake, so a clock difference between the TV and the server can't hide or prolong it.
+const SHAKE_STALE_MS = E.SHAKE_STALE_MS || 8000;
+let shakeSeen = { key: null, at: 0 };
+// A new roll is "landing" while the 3D dice brake onto it: until the view reports `settled` for that rollKey
+// (tv.landedKey) or, as a safety net, DICE_SETTLE_MS + 1.5 s after this TV first saw the roll.
+const LANDING_MAX_MS = (E.DICE_SETTLE_MS || 5000) + 1500;
+let rollSeen = { key: null, at: 0 };
+export function landingNow(key, landedKey, now = Date.now()){
+  if (!key || key === landedKey) return false;
+  if (rollSeen.key !== key) rollSeen = { key, at: now };
+  return now - rollSeen.at < LANDING_MAX_MS;
+}
+export function shakingNow(h, now = Date.now(), pid = ''){
+  if (!h || !h.shaking) return false;
+  const key = pid + ':' + (h.shakeTs || 0);
+  if (shakeSeen.key !== key) shakeSeen = { key, at: now };
+  return now - shakeSeen.at < SHAKE_STALE_MS;
+}
 
 export const t = (lang, key, vars) => { const s = (I.STR[lang] || I.STR.en)[key] || key; return vars ? I.fmt(s, vars) : s; };
 export const catName = (lang, variant, c) => (I.CATS[variant] && I.CATS[variant][lang][c]) || c;
@@ -92,11 +113,23 @@ export function computeVals(tv, g){
   if (g.mode === 'turns' && g.phase === 'playing' && players.length) {
     const ap = players[g.activeIdx] || players[0]; const h = g.hand;
     v.active = { color: ap.color, initial: initial(ap.name) };
-    v.turnLabel = tt('turn_of', { name: ap.name }); v.statusLabel = statusOf(h); v.rollsLabel = rollsLabel(h);
+    const shaking = shakingNow(h, tv.now || Date.now(), ap.id);
+    v.shaking = shaking;
+    v.turnLabel = tt('turn_of', { name: ap.name }); v.rollsLabel = rollsLabel(h);
+    v.statusLabel = shaking ? (I.STR[lang] && I.STR[lang].shaking) || TV_STR[lang].shaking : statusOf(h);
+    // Input for the 3D dice view (protocol in docs/ARCHITECTURE.md). rollKey identifies one roll: hand.rollId
+    // restarts with every fresh hand, so it is combined with the round and the active seat.
+    v.dice3d = {
+      dice: h.dice.slice(), held: h.dice.map((_, i) => !!(h.held[i] && h.rolled)), rolled: !!h.rolled,
+      rollKey: g.round + ':' + g.activeIdx + ':' + (h.rollId || 0), shaking, color: ap.color, reduced,
+    };
     v.rollDots = [0, 1, 2].map(i => i < h.rollsLeft ? ap.color : C.chip);
     v.dice = h.dice.map((d, i) => dieVM(d, !!(h.held[i] && h.rolled), h, ap.color, i));
-    v.servidaVisible = g.variant === 'generala' && h.rolled && h.rollsLeft === 2;
-    const pot = E.handPotential(g, ap.id);
+    // While the 3D dice are still landing, keep the result to themselves (no potentials, no "First roll").
+    const landing = !!(tv.dice3d && h.rolled) && landingNow(v.dice3d.rollKey, tv.landedKey, tv.now || Date.now());
+    v.landing = landing;
+    v.servidaVisible = g.variant === 'generala' && h.rolled && h.rollsLeft === 2 && !landing;
+    const pot = landing ? null : E.handPotential(g, ap.id);
     v.cols = players.map(p => ({ key: p.id, name: p.name, color: p.color, initial: initial(p.name), ring: p.id === ap.id ? C.inkDark : null }));
     const size = g.variant === 'yahtzee' ? 17 : 19;
     const row = (key, label, cells, o = {}) => ({ key, label, cells, size: o.size || size, weight: o.weight || '700', labelColor: o.labelColor || C.pip, bg: o.bg || 'transparent' });

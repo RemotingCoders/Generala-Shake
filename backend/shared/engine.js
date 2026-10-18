@@ -89,7 +89,15 @@ export function totals(variant, player){
 
 export function maxRounds(state){ return state.demoLength === 'short' ? SHORT_ROUNDS : VARIANTS[state.variant].rounds; }
 
-const freshHand = () => ({ dice: [1,2,3,4,5], held: [false,false,false,false,false], rollsLeft: 3, rolled: false, done: false });
+const freshHand = () => ({ dice: [1,2,3,4,5], held: [false,false,false,false,false], rollsLeft: 3, rolled: false, done: false, shaking: false });
+
+// Live shaking / 3D dice timing (see docs/ARCHITECTURE.md "Live shaking and 3D dice")
+export const DICE_SETTLE_MS = 5000;   // brake duration: a new rollId lands on its faces after this long
+export const MIN_SPIN_MS = 350;       // minimum spin before braking when a roll arrives without a prior shake
+export const SHAKE_STALE_MS = 8000;   // viewers treat `shaking` as false after this long without a change
+export function isShaking(hand, now = Date.now()){
+  return !!(hand && hand.shaking) && !(now - (hand.shakeTs || 0) > SHAKE_STALE_MS);
+}
 
 export function newGame(cfg){
   const code = Array.from({length:4}, () => 'ABCDEFGHJKMNPQRSTUVWXYZ'[Math.floor(Math.random()*23)]).join('');
@@ -132,12 +140,21 @@ function canAct(state, pid){
   return null;
 }
 
-export function rollDice(state, pid, rng = Math.random){
+// Starts/stops the live shake of a hand (no event). Same checks as rollDice.
+export function setShaking(state, pid, active, now = Date.now()){
+  const err = canAct(state, pid); if (err) return { error: err };
+  const h = handOf(state, pid);
+  if (h.rollsLeft <= 0) return { error: 'noRolls' };
+  const nh = { ...h, shaking: !!active, shakeTs: now };
+  return { state: { ...withHand(state, pid, nh), seq: state.seq + 1 } };
+}
+
+export function rollDice(state, pid, rng = Math.random, now = Date.now()){
   const err = canAct(state, pid); if (err) return { error: err };
   const h = handOf(state, pid);
   if (h.rollsLeft <= 0) return { error: 'noRolls' };
   const dice = h.dice.map((v, i) => (h.held[i] && h.rolled) ? v : 1 + Math.floor(rng()*6));
-  const nh = { ...h, dice, rollsLeft: h.rollsLeft - 1, rolled: true, rollId: (h.rollId||0) + 1 };
+  const nh = { ...h, dice, rollsLeft: h.rollsLeft - 1, rolled: true, rollId: (h.rollId||0) + 1, shaking: false, shakeTs: now };
   return { state: { ...withHand(state, pid, nh), seq: state.seq + 1 } };
 }
 
