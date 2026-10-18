@@ -21,3 +21,10 @@ export const REQUEST_TIMEOUT_MS = 8000;
 // (ready / settled / error / stats) is also sent as GET <url>/dice3d?data=<json> — for testing on the VVD.
 export const DICE3D_ENABLED = true;
 export const DICE3D_DEBUG_URL = '';
+
+// Narrator voice (speechSynthesis in a hidden WebView). VOICE_DEBUG_URL works like DICE3D_DEBUG_URL.
+export const VOICE_ENABLED = true;
+export const VOICE_DEBUG_URL = '';
+// Narrator audio: GET <VOICE_TTS_URL>?lang&k&name&score&cat&n (backend/api/tts.js, OpenAI). '' → the WebView's
+// speechSynthesis, which exists on Vega but has no voices (fails with 'synthesis-failed'). Vega blocks http audio.
+export const VOICE_TTS_URL = API_BASE_URL + '/api/tts';

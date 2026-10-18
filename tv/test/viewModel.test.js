@@ -69,3 +69,10 @@ test('potentials wait for the 3D dice to land (settled or timeout)', () => {
   expect(gen(computeVals({ ...base, now: 50000, landedKey: '1:0:1' }, g))).toBe('50');
   expect(gen(computeVals({ ...base, now: 56600 }, g))).toBe('50'); // safety net
 });
+
+test('voiceLine carries the narrator key + vars for /api/tts, once per event, only with the narrator on', () => {
+  const g = { ...game(), events: [{ id: 7, type: 'score', pid: 'a', cat: 'full', score: 30 }] };
+  const v = computeVals(tv, g);
+  expect(v.voiceLine).toEqual({ id: g.roomCode + ':7', k: 'full', vars: { name: 'Ana', score: 30, cat: 'Full', n: undefined }, text: 'Full de Ana, 30 puntos. Ordenadito como la mesa del domingo.', lang: 'es' });
+  expect(computeVals(tv, { ...g, narrator: false }).voiceLine).toBe(null);
+});

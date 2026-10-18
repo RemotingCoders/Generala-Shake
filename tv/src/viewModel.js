@@ -30,11 +30,16 @@ export const t = (lang, key, vars) => { const s = (I.STR[lang] || I.STR.en)[key]
 export const catName = (lang, variant, c) => (I.CATS[variant] && I.CATS[variant][lang][c]) || c;
 const initial = n => (n || '?').trim().charAt(0).toUpperCase();
 
-export function feedText(lang, g, ev){
+// Narrator line for an event: { k (NARRATOR key), vars, text } or null. k + vars also drive /api/tts.
+export function feedLine(lang, g, ev){
   if (!g || !ev) return null;
   const N = I.NARRATOR[lang];
   const p = g.players.find(x => x.id === ev.pid) || (ev.winnerIds && g.players.find(x => x.id === ev.winnerIds[0])) || { name: '?' };
-  const pick = (k) => N[k] ? I.fmt(N[k][0], { name: p.name, score: ev.score, cat: ev.cat ? catName(lang, ev.variant || g.variant, ev.cat) : '', n: ev.round }) : null;
+  const pick = (k) => {
+    if (!N[k]) return null;
+    const vars = { name: p.name, score: ev.score, cat: ev.cat ? catName(lang, ev.variant || g.variant, ev.cat) : '', n: ev.round };
+    return { k, vars, text: I.fmt(N[k][0], vars) };
+  };
   if (ev.type === 'servidaWin') return pick('servidaWin');
   if (ev.type === 'yahtzeeBonus') return pick('yahtzeeBonus');
   if (ev.type === 'lead') return pick('lead');
@@ -46,6 +51,11 @@ export function feedText(lang, g, ev){
     if (['generala', 'poker', 'full', 'escalera', 'yahtzee', 'large'].includes(ev.cat) && ev.score > 0) return pick(ev.cat);
   }
   return null;
+}
+
+export function feedText(lang, g, ev){
+  const l = feedLine(lang, g, ev);
+  return l ? l.text : null;
 }
 
 export function screenOf(tv, g){
@@ -101,9 +111,11 @@ export function computeVals(tv, g){
 
   // Narrator: latest server event that has a line.
   const evs = (g.events || []).slice().sort((a, b) => (a.id || 0) - (b.id || 0));
-  let line = null;
-  for (let i = evs.length - 1; i >= 0 && !line; i--) line = feedText(lang, g, evs[i]);
-  v.feedVisible = !!(g.narrator && !tv.muted && line); v.feedText = line || '';
+  let line = null, lineId = null;
+  for (let i = evs.length - 1; i >= 0 && !line; i--) { line = feedLine(lang, g, evs[i]); if (line) lineId = evs[i].id; }
+  v.feedVisible = !!(g.narrator && !tv.muted && line); v.feedText = line ? line.text : '';
+  // spoken by the narrator voice (ui/Voice.js); `id` = the event id, so each line is said once
+  v.voiceLine = line && g.narrator ? { id: g.roomCode + ':' + lineId, k: line.k, vars: line.vars, text: line.text, lang } : null;
 
   const rollsLabel = h => h.rollsLeft === 0 ? tt('no_rolls') : h.rollsLeft === 1 ? tt('rolls_left_one') : tt('rolls_left', { n: h.rollsLeft });
   const statusOf = h => h.done ? tt('ready') : (h.rolled && h.rollsLeft === 0) ? tt('choosing') : h.rolled ? tt('rolling') : tt('waiting_roll');

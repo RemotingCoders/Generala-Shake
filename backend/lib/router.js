@@ -5,6 +5,7 @@ import room from '../api/rooms/[code]/index.js';
 import join from '../api/rooms/[code]/join.js';
 import host from '../api/rooms/[code]/host.js';
 import play from '../api/rooms/[code]/play.js';
+import tts from '../api/tts.js';
 import { cors, send } from './http.js';
 
 const ROUTES = [
@@ -14,6 +15,7 @@ const ROUTES = [
   [/^\/api\/rooms\/([^/]+)\/join\/?$/, join],
   [/^\/api\/rooms\/([^/]+)\/host\/?$/, host],
   [/^\/api\/rooms\/([^/]+)\/play\/?$/, play],
+  [/^\/api\/tts\/?$/, tts],
 ];
 
 // Returns false when the URL isn't an API route.

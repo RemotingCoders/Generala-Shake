@@ -58,3 +58,12 @@ Para dev con Supabase: copiar `.env.example` a `.env.local` y completar.
 ## Apuntar la app de TV
 
 En `tv/src/config.ts` poner la URL base de la API: `https://TU-APP.vercel.app` (producción) o `http://IP-DE-TU-MAC:5173` (dev local en la misma red). La TV crea la sala con `POST /api/rooms` y muestra el `joinUrl` que devuelve el servidor en el QR.
+
+## Voz del relator (OpenAI)
+
+`GET /api/tts` genera el audio de cada frase del relator con OpenAI (`gpt-4o-mini-tts`). Cargá en Vercel → Settings → Environment Variables:
+
+- `OPENAI_API_KEY` (obligatoria para que la tele hable; sin ella `/api/tts` responde 503 y la tele queda en silencio)
+- Opcionales: `OPENAI_TTS_VOICE` (por defecto `ash`), `OPENAI_TTS_MODEL` (por defecto `gpt-4o-mini-tts`)
+
+Solo acepta frases del relator (tipo de frase + nombre/puntaje/categoría/ronda), no texto libre. Cada frase distinta se genera una sola vez y después la sirve la CDN de Vercel.

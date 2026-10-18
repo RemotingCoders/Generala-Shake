@@ -4,12 +4,13 @@
 import React from 'react';
 import { AccessibilityInfo, BackHandler, View } from 'react-native';
 import { api, isGone } from './api';
-import { POLL_MS, DICE3D_ENABLED } from './config';
+import { POLL_MS, DICE3D_ENABLED, VOICE_ENABLED } from './config';
 import { loadSession, saveSession, clearSession, loadPrefs, savePrefs } from './storage';
 import { computeVals, screenOf } from './viewModel';
 import { Home, Setup, Lobby, Playing, Results, Closed, Help } from './screens';
 import { C, Txt } from './ui/components';
 import { SCREEN, sx } from './ui/scale';
+import { Voice } from './ui/Voice';
 
 function detectLang(){
   try {
@@ -211,6 +212,7 @@ export class App extends React.Component {
       <View style={{ width: SCREEN.width, height: SCREEN.height, backgroundColor: C.bg, overflow: 'hidden' }}>
         {GLOW.map((g, i) => <View key={i} pointerEvents="none" style={{ position: 'absolute', top: SCREEN.height * (-0.1 - g), left: SCREEN.width * (0.2 - g) - SCREEN.width * 0.25, width: SCREEN.width * (0.5 + 2 * g), height: SCREEN.width * (0.5 + 2 * g), borderRadius: SCREEN.width, backgroundColor: '#3A2A24', opacity: 0.12 }} />)}
         {body}
+        {VOICE_ENABLED ? <Voice line={game ? v.voiceLine : null} enabled={!tv.muted} /> : null}
         {banner ? (
           <View pointerEvents="none" style={sx({ position: 'absolute', top: 12, left: 0, right: 0, alignItems: 'center' })}>
             <View style={sx({ backgroundColor: C.focus, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 24 })}>

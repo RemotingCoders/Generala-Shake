@@ -112,3 +112,7 @@ En el emulador: flechas y Enter del teclado; Esc = Atrás. Para automatizar:
 - `src/api.js`, `src/storage.js`, `src/config.ts`.
 - `assets/fonts/` — Fredoka y Nunito (OFL). Vega registra cada fuente por nombre de archivo (`Nunito-Bold`, ...).
 - `test/` — `npm test` (Jest).
+
+## Voz del relator
+
+Las frases del relator se escuchan por el parlante de la tele: `src/ui/Voice.js` reproduce el audio de `GET <API>/api/tts` (OpenAI, ver `backend/README.md`) en un WebView oculto. Respeta "Silenciar" y el relator apagado. Requiere `OPENAI_API_KEY` en Vercel; sin ella la tele queda en silencio sin errores visibles.

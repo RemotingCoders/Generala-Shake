@@ -5,7 +5,7 @@ export class ApiError extends Error {
 }
 export const fail = (status, code) => { throw new ApiError(status, code); };
 
-const STATUS = { badRequest: 400, unauthorized: 401, notfound: 404, expired: 410 }; // everything else: 409
+const STATUS = { badRequest: 400, unauthorized: 401, notfound: 404, expired: 410, ttsFailed: 502, ttsUnavailable: 503 }; // everything else: 409
 export const statusOf = code => STATUS[code] || 409;
 
 export function cors(res){
