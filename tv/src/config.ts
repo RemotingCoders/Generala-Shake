@@ -1,0 +1,18 @@
+// Where the TV app finds the Generala API (backend/ — Vercel functions or the local Vite dev server).
+//
+// Local development on the Vega Virtual Device:
+//   The VVD is a QEMU/Android-emulator VM with user-mode networking, so the host Mac is reachable
+//   from inside the device at 10.0.2.2 (verified with curl from `vda shell`). The Mac's LAN IP also
+//   works. Run the backend with `cd backend && npm run dev -- --port 5180`.
+//   Start the backend with PUBLIC_URL=http://<LAN-IP-of-the-Mac>:5180 so the QR's joinUrl is
+//   reachable from phones (otherwise it would point at 10.0.2.2, which only the VVD can reach).
+//
+// Deployed: switch to the Vercel URL, e.g. 'https://generala-shake.vercel.app' (no trailing slash).
+export const LOCAL_API_BASE_URL = 'http://10.0.2.2:5180';
+export const VERCEL_API_BASE_URL = 'https://generala-shake.vercel.app';
+
+export const API_BASE_URL: string = LOCAL_API_BASE_URL;
+
+// Live updates: the contract asks for a 1000 ms poll of GET /api/rooms/:code (realtime is optional).
+export const POLL_MS = 1000;
+export const REQUEST_TIMEOUT_MS = 8000;

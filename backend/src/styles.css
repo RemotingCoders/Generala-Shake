@@ -1,0 +1,13 @@
+body{margin:0;background:#FFF9EE;font-family:'Nunito',system-ui,sans-serif;color:#2A211C;-webkit-tap-highlight-color:transparent}
+body.phone{overscroll-behavior:none}
+body.tv{background:#15110F}
+a{color:#B8472A}a:hover{color:#8E3219}
+input{font-family:inherit}
+button{font-family:inherit;cursor:pointer}
+@keyframes tumbleA{0%{transform:rotate(-12deg) translateY(-18px) scale(.92)}45%{transform:rotate(9deg) translateY(4px) scale(1.04)}100%{transform:rotate(0) translateY(0) scale(1)}}
+@keyframes tumbleB{0%{transform:rotate(14deg) translateY(-18px) scale(.92)}45%{transform:rotate(-8deg) translateY(4px) scale(1.04)}100%{transform:rotate(0) translateY(0) scale(1)}}
+@keyframes popIn{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes fall{0%{transform:translateY(-40px) rotate(0)}100%{transform:translateY(760px) rotate(540deg)}}
+@keyframes shimmer{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
