@@ -20,6 +20,10 @@ id = "/com.amazon.kepler.keplerscript_4@IKeplerScript_0"
 [[needs.module]]
 id = "/com.amazon.kepler.webview_4@IWebview_4"
 
+# Native media player (narrator voice)
+[[needs.module]]
+id = "/com.amazon.kepler.w3cmedia_2@IW3cmedia_3"
+
 [components]
 [[components.interactive]]
 id = "com.generalashake.tv.main"
@@ -32,6 +36,15 @@ categories = ["com.amazon.category.main"]
 [[wants.service]]
 id = "com.amazon.webview.renderer_service"
 
-# Audio focus for the narrator voice (src/ui/Voice.js, @amazon-devices/keplerscript-audio-lib)
+# Narrator voice: native media player (src/ui/Voice.js, @amazon-devices/react-native-w3cmedia)
+[[wants.service]]
+id = "com.amazon.media.server"
+
+[[wants.service]]
+id = "com.amazon.media.playersession.service"
+
+[[wants.service]]
+id = "com.amazon.audio.stream"
+
 [[wants.service]]
 id = "com.amazon.audio.control"

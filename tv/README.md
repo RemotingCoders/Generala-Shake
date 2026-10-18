@@ -115,4 +115,6 @@ En el emulador: flechas y Enter del teclado; Esc = Atrás. Para automatizar:
 
 ## Voz del relator
 
-Las frases del relator se escuchan por el parlante de la tele: `src/ui/Voice.js` reproduce el audio de `GET <API>/api/tts` (OpenAI, ver `backend/README.md`) en un WebView oculto. Respeta "Silenciar" y el relator apagado. Requiere `OPENAI_API_KEY` en Vercel; sin ella la tele queda en silencio sin errores visibles. En Vega el audio solo suena si la app pide el foco de audio (`@amazon-devices/keplerscript-audio-lib`, servicio `com.amazon.audio.control` en `manifest.toml`): `Voice.js` lo pide antes de cada frase y lo libera al terminar.
+Las frases del relator se escuchan por el parlante de la tele: `src/ui/Voice.js` reproduce el MP3 de `GET <API>/api/tts` (OpenAI, ver `backend/README.md`) con el reproductor nativo de Vega (`AudioPlayer` de `@amazon-devices/react-native-w3cmedia`). Respeta "Silenciar" y el relator apagado. Requiere `OPENAI_API_KEY` en Vercel; sin ella la tele queda en silencio sin errores visibles.
+
+El audio desde un WebView no funciona en Vega (sin voces de `speechSynthesis`, `<audio>` trabado, Web Audio sin salida), por eso la voz es nativa. Con `VOICE_DEBUG_URL` en `src/config.ts` la app dice una frase fija al arrancar, útil para probar los parlantes. En el emulador el sonido sale por la salida de audio que tenía la Mac al arrancar el emulador: si la cambiás, reiniciá el emulador.

@@ -19,9 +19,9 @@
     "release": "npm-run-all lint test build:app"
   },
   "dependencies": {
-    "@amazon-devices/keplerscript-audio-lib": "2.0.18",
     "@amazon-devices/react-native-async-storage__async-storage": "2.1.9000000001",
     "@amazon-devices/react-native-kepler": "~4.0.0",
+    "@amazon-devices/react-native-w3cmedia": "2.3.2",
     "@amazon-devices/webview": "4.0.2",
     "qrcode-generator": "2.0.4",
     "react": "19.2.0",

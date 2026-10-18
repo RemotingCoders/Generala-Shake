@@ -22,9 +22,10 @@ export const REQUEST_TIMEOUT_MS = 8000;
 export const DICE3D_ENABLED = true;
 export const DICE3D_DEBUG_URL = '';
 
-// Narrator voice (hidden WebView, src/ui/Voice.js). VOICE_DEBUG_URL works like DICE3D_DEBUG_URL.
+// Narrator voice (native media player, src/ui/Voice.js). VOICE_DEBUG_URL works like DICE3D_DEBUG_URL and also
+// makes the app say a fixed line at start (to check the speakers by ear).
 export const VOICE_ENABLED = true;
 export const VOICE_DEBUG_URL = '';
-// Narrator audio: GET <VOICE_TTS_URL>?lang&k&name&score&cat&n (backend/api/tts.js, OpenAI). '' → the WebView's
-// speechSynthesis, which exists on Vega but has no voices (fails with 'synthesis-failed'). Vega blocks http audio.
+// Narrator audio: GET <VOICE_TTS_URL>?lang&k&name&score&cat&n (backend/api/tts.js, OpenAI). '' → no voice.
+// Must be https: Vega blocks cleartext http.
 export const VOICE_TTS_URL = API_BASE_URL + '/api/tts';
