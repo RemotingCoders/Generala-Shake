@@ -5,6 +5,8 @@ import * as E from '../shared/engine.js';
 import { getStore } from './store.js';
 import { fail, statusOf } from './http.js';
 import { publicUrl } from './config.js';
+import { prewarm } from './tts.js';
+import { waitUntil } from '@vercel/functions';
 
 const LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ';
 export const ROOM_TTL = 4 * 3600e3;
@@ -42,6 +44,9 @@ async function load(code){
   return row.state;
 }
 
+// Vercel keeps the function alive for `job` after responding; elsewhere (dev, tests) it just runs.
+function background(job){ try { waitUntil(job); } catch (e) { /* not on Vercel */ } }
+
 // Applies fn(state, now) → { state, events } | { error } | { noop: true } and stores it, retrying on seq conflicts.
 async function mutate(code, fn, actorId){
   for (let i = 0; i < MAX_RETRIES; i++) {
@@ -58,7 +63,12 @@ async function mutate(code, fn, actorId){
       next.events = [...(next.events || []), ...evs].slice(-MAX_EVENTS);
       next.lastEventId = id;
     }
-    if (await getStore().update(code, prev.seq, next)) return next;
+    if (await getStore().update(code, prev.seq, next)) {
+      // narrator audio for the new events: generated in the background, after the response is sent
+      const job = r.events && r.events.length ? prewarm(next, next.events.slice(-r.events.length)) : null;
+      if (job) background(job);
+      return next;
+    }
   }
   fail(409, 'busy');
 }

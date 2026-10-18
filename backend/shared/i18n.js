@@ -189,3 +189,28 @@ export const NARRATOR = {
 
 export function fmt(s, vars){ return s.replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] !== undefined) ? vars[k] : ''); }
 export function detectLang(){ const l = (navigator.language || 'en').toLowerCase(); return l.startsWith('es') ? 'es' : 'en'; }
+
+// Narrator line for a room event: { k (NARRATOR key), vars, text } or null when the event has no line.
+// Shared by the TV (shows and speaks it) and the server (pre-generates its audio, backend/lib/tts.js).
+export function narratorLine(lang, g, ev){
+  if (!g || !ev) return null;
+  const N = NARRATOR[lang];
+  const p = g.players.find(x => x.id === ev.pid) || (ev.winnerIds && g.players.find(x => x.id === ev.winnerIds[0])) || { name: '?' };
+  const pick = (k) => {
+    if (!N[k]) return null;
+    const variant = ev.variant || g.variant;
+    const vars = { name: p.name, score: ev.score, cat: ev.cat ? ((CATS[variant] && CATS[variant][lang][ev.cat]) || ev.cat) : '', n: ev.round };
+    return { k, vars, text: fmt(N[k][0], vars) };
+  };
+  if (ev.type === 'servidaWin') return pick('servidaWin');
+  if (ev.type === 'yahtzeeBonus') return pick('yahtzeeBonus');
+  if (ev.type === 'lead') return pick('lead');
+  if (ev.type === 'newRound') return pick('newRound');
+  if (ev.type === 'end') return ev.tie ? pick('tie') : pick('end');
+  if (ev.type === 'score') {
+    if (ev.score === 0) return pick('zero');
+    if (ev.cat === 'doble') return pick('doble');
+    if (['generala', 'poker', 'full', 'escalera', 'yahtzee', 'large'].includes(ev.cat) && ev.score > 0) return pick(ev.cat);
+  }
+  return null;
+}

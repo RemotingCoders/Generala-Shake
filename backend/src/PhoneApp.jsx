@@ -4,6 +4,7 @@ import * as I from '../shared/i18n.js';
 import GeneralaPhone from './GeneralaPhone.jsx';
 import { rooms, watchRoom, isOffline, store } from './api.js';
 import { ShakeDetector } from './motion.js';
+import { armTurnAlert, turnAlert } from './alert.js';
 
 const PREF = 'generala.phone.pref';       // { lang, name, color, motion, motionDone } — per device
 const SESSION = 'generala.phone.session'; // { code, playerToken, playerId } — so a reload rejoins
@@ -44,6 +45,7 @@ export default class PhoneApp extends React.Component {
     this.pingTimer = setInterval(() => this.ping(), 10000);
     document.addEventListener('visibilitychange', this.onVisible);
     if (this.state.motion === 'granted') this.resumeMotion();
+    armTurnAlert();
   }
   componentWillUnmount(){
     clearInterval(this.pingTimer); clearTimeout(this.retryTimer); clearTimeout(this.settleTimer); clearInterval(this.motionTimer); clearInterval(this.shakeKeepAlive); clearTimeout(this.press && this.press.timer);
@@ -74,7 +76,10 @@ export default class PhoneApp extends React.Component {
     if (me && !s.players.some(p => p.id === me)) { store.set(SESSION, null); this.setState({ game: s, me: null, token: null }); return; }
     const patch = { game: s };
     if (me && s.closed) { this.roomGone('closed'); return; }
-    if (me && isMyTurn(s, me) && !isMyTurn(prev, me)) { vibrate(150); patch.tab = 'dice'; patch.pick = null; patch.confirmZero = null; }
+    if (me && isMyTurn(s, me) && !isMyTurn(prev, me)) {
+      if (prev) turnAlert(); // vibration + chime; not on the first state after a (re)load
+      patch.tab = 'dice'; patch.pick = null; patch.confirmZero = null;
+    }
     if (me && !isMyTurn(s, me)) {
       patch.pick = null; patch.confirmZero = null;
       if (this.shakeSrc) { this.shakeSrc = null; this.shakeT0 = null; clearInterval(this.shakeKeepAlive); patch.shaking = false; } // turn/round over or paused: drop the gesture

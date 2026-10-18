@@ -22,3 +22,29 @@ test('GET /api/tts without OPENAI_API_KEY → 503 ttsUnavailable; bad key → 40
   assert.deepEqual(await call('/api/tts?lang=es&k=full&name=Ana&score=30'), { status: 503, body: { error: 'ttsUnavailable' } });
   assert.deepEqual(await call('/api/tts?lang=es&k=hack'), { status: 400, body: { error: 'badRequest' } });
 });
+
+test('a narrator event pre-generates its audio in the background; /api/tts then serves it from the cache', async () => {
+  process.env.OPENAI_API_KEY = 'test-key';
+  const realFetch = globalThis.fetch, calls = [];
+  globalThis.fetch = async (url, init) => {
+    if (String(url).startsWith('https://api.openai.com/')) { calls.push(JSON.parse(init.body).input); await new Promise(r => setTimeout(r, 30)); return new Response(Buffer.from('ID3fake-' + calls.length), { status: 200 }); }
+    return realFetch(url, init);
+  };
+  try {
+    const { createRoom, joinRoom, hostAction, playAction } = await import('../lib/rooms.js');
+    const room = (await createRoom({ variant: 'generala', mode: 'turns', narrator: true, demoLength: 'short' }, { headers: { host: 'x' } })).body;
+    const a = (await joinRoom(room.code, { name: 'Tita', color: '#E8603C' })).body;
+    await joinRoom(room.code, { name: 'Pocho', color: '#2A9D8F' });
+    await hostAction(room.code, { hostToken: room.hostToken, action: 'start' });
+    await playAction(room.code, { playerToken: a.playerToken, action: 'roll' });
+    await playAction(room.code, { playerToken: a.playerToken, action: 'choose', cat: 'generala' }); // scratch → "zero" line
+    await new Promise(r => setTimeout(r, 150));                                                     // background job done
+    assert.deepEqual(calls.sort(), ['Tita scratches Generala. It hurts, but it is strategy.', 'Tita tacha Generala. Duele, pero es estrategia.']);
+    const res = await new Promise(resolve => {
+      const r = { headers: {}, setHeader(k, v){ this.headers[k] = v; }, end(b){ resolve({ status: this.statusCode, type: this.headers['Content-Type'], body: String(b) }); } };
+      handleApi({ method: 'GET', url: '/api/tts?lang=es&k=zero&name=Tita&cat=Generala', headers: {} }, r);
+    });
+    assert.equal(res.status, 200); assert.equal(res.type, 'audio/mpeg'); assert.match(res.body, /^ID3fake-/);
+    assert.equal(calls.length, 2, 'served from cache, no new OpenAI call');
+  } finally { globalThis.fetch = realFetch; delete process.env.OPENAI_API_KEY; }
+});

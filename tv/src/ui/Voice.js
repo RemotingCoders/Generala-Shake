@@ -19,6 +19,7 @@ export class Voice extends React.Component {
 
   componentDidMount(){
     this.check();
+    if (VOICE_DEBUG_URL) { let last = Date.now(), worst = 0; this.lag = setInterval(() => { const now = Date.now(), d = now - last - 100; last = now; if (d > 150) this.debug({ type: 'jsStall', ms: d, speaking: this.speaking }); }, 100); }
     const p = new AudioPlayer(AudioContentType.CONTENT_TYPE_SPEECH, AudioUsageType.USAGE_MEDIA);
     for (const ev of ['playing', 'ended', 'error', 'pause', 'waiting']) p.addEventListener(ev, () => this.onEvent(ev));
     p.initialize().then(() => {
@@ -29,7 +30,7 @@ export class Voice extends React.Component {
     }, e => this.debug({ type: 'initError', err: String(e && (e.message || e)) }));
   }
   componentDidUpdate(){ this.check(); }
-  componentWillUnmount(){ const p = this.player; this.player = null; if (p) p.deinitialize().catch(() => {}); }
+  componentWillUnmount(){ clearInterval(this.lag); const p = this.player; this.player = null; if (p) p.deinitialize().catch(() => {}); }
 
   debug(o){ if (VOICE_DEBUG_URL) fetch(VOICE_DEBUG_URL + '/voice?data=' + encodeURIComponent(JSON.stringify(o))).catch(() => {}); }
 
@@ -49,10 +50,11 @@ export class Voice extends React.Component {
     if (!this.ready || !p || !l || !VOICE_TTS_URL) return;
     this.pending = null; this.speaking = l.id;
     try {
-      p.pause();
-      p.src = ttsUrl(l);
-      const r = p.play(); if (r && r.catch) r.catch(e => this.debug({ type: 'playError', id: l.id, err: String(e && (e.message || e)) }));
-      this.debug({ type: 'say', id: l.id, url: p.src });
+      const t0 = Date.now();
+      p.pause(); const t1 = Date.now();
+      p.src = ttsUrl(l); const t2 = Date.now();
+      const r = p.play(); const t3 = Date.now(); if (r && r.catch) r.catch(e => this.debug({ type: 'playError', id: l.id, err: String(e && (e.message || e)) }));
+      this.debug({ type: 'say', id: l.id, pauseMs: t1 - t0, srcMs: t2 - t1, playMs: t3 - t2 });
     } catch (e) { this.debug({ type: 'sayError', id: l.id, err: String(e && (e.message || e)) }); }
   }
 

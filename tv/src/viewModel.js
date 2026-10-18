@@ -31,27 +31,7 @@ export const catName = (lang, variant, c) => (I.CATS[variant] && I.CATS[variant]
 const initial = n => (n || '?').trim().charAt(0).toUpperCase();
 
 // Narrator line for an event: { k (NARRATOR key), vars, text } or null. k + vars also drive /api/tts.
-export function feedLine(lang, g, ev){
-  if (!g || !ev) return null;
-  const N = I.NARRATOR[lang];
-  const p = g.players.find(x => x.id === ev.pid) || (ev.winnerIds && g.players.find(x => x.id === ev.winnerIds[0])) || { name: '?' };
-  const pick = (k) => {
-    if (!N[k]) return null;
-    const vars = { name: p.name, score: ev.score, cat: ev.cat ? catName(lang, ev.variant || g.variant, ev.cat) : '', n: ev.round };
-    return { k, vars, text: I.fmt(N[k][0], vars) };
-  };
-  if (ev.type === 'servidaWin') return pick('servidaWin');
-  if (ev.type === 'yahtzeeBonus') return pick('yahtzeeBonus');
-  if (ev.type === 'lead') return pick('lead');
-  if (ev.type === 'newRound') return pick('newRound');
-  if (ev.type === 'end') return ev.tie ? pick('tie') : pick('end');
-  if (ev.type === 'score') {
-    if (ev.score === 0) return pick('zero');
-    if (ev.cat === 'doble') return pick('doble');
-    if (['generala', 'poker', 'full', 'escalera', 'yahtzee', 'large'].includes(ev.cat) && ev.score > 0) return pick(ev.cat);
-  }
-  return null;
-}
+export const feedLine = (lang, g, ev) => I.narratorLine(lang, g, ev);
 
 export function feedText(lang, g, ev){
   const l = feedLine(lang, g, ev);
