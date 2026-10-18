@@ -240,6 +240,9 @@ export default class PhoneApp extends React.Component {
       case 'tab': if (arg !== 'dice') { this.cancelPress(); if (this.shakeSrc) this.finishShake(false); } this.setState({ tab: arg }); break;
       case 'rules': this.setState({ showRules: !st.showRules }); break;
       case 'roll': this.roll(); break;
+      // the 3D dice landed: reveal now instead of waiting for the timer. A reloaded view snaps and reports at once,
+      // so only a landing near the end of the real brake counts.
+      case 'settled': if (st.settling && Date.now() >= this.settleEnd - 1500) this.endSettle(); break;
       case 'rollDown': this.rollDown(arg); break;
       case 'rollUp': this.rollUp(arg); break;
       case 'rollCancel': this.rollCancel(arg); break;

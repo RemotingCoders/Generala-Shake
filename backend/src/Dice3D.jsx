@@ -31,6 +31,7 @@ export default class Dice3D extends React.Component {
     if (d.type === 'ready') { clearTimeout(this.timer); this.lastSent = null; if (this.state.status !== 'failed') this.setState({ status: 'ready' }, () => this.push(true)); }
     else if (d.type === 'error') this.fail(d.message || 'error');
     else if (d.type === 'settled' && this.props.onSettled) this.props.onSettled(d);
+    else if (d.type === 'tap' && this.props.onTap) this.props.onTap(d.index);
   };
 
   message(){
@@ -55,7 +56,7 @@ export default class Dice3D extends React.Component {
     return (
       <div data-dice3d={status} style={{ position: 'relative', width: '100%', height: '100%' }}>
         {status !== 'failed' && (
-          <iframe ref={this.frame} src={SRC} title="dice" onError={() => this.fail('load')}
+          <iframe ref={this.frame} src={SRC + (this.props.query ? '?' + this.props.query : '')} title="dice" onError={() => this.fail('load')}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0, background: 'transparent', visibility: status === 'ready' ? 'visible' : 'hidden' }}
             allowtransparency="true" />
         )}

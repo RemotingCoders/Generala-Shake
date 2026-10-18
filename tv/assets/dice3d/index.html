@@ -6,10 +6,12 @@
 <title>Generala 3D dice</title>
 <!--
   Embeddable 3D dice view (protocol: docs/ARCHITECTURE.md, "3D dice view"). No UI chrome.
-  Query params: bg=<hex without #> | transparent (default), pr=<pixel ratio> (default 1), debug=1 (stats messages).
+  Query params: bg=<hex without #> | transparent (default), pr=<pixel ratio> (default 1), layout=grid (3 over 2, phone),
+                debug=1 (stats messages).
   Input:  window.diceUpdate(msg) or window.postMessage(msg)
           msg = { type:'dice', dice:[5], held:[5], rolled, rollId, shaking, color:'#hex', reduced }
-  Output: { type:'ready' } | { type:'settled', rollId, faces, valid } | { type:'error', message } (+ { type:'stats' } with debug=1)
+  Output: { type:'ready' } | { type:'settled', rollId, faces, valid } | { type:'tap', index } | { type:'error', message }
+          (+ { type:'stats' } with debug=1)
 -->
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;-webkit-user-select:none;user-select:none}
@@ -56,10 +58,13 @@ try {
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
   camera.position.set(0, 0, 17); camera.lookAt(0, 0, 0);
 
-  // World layout: a row of 5 dice (side 1.25) spaced 2.25 apart. 1.09 bounds the projected half-size of a
-  // spinning die (0.625·√3), so neighbours can never overlap. Held dice are lifted by LIFT.
+  // World layout: a row of 5 dice (side 1.25) spaced 2.25 apart, or (layout=grid, the phone) 3 over 2 like the
+  // prototype's portrait layout. 1.09 bounds the projected half-size of a spinning die (0.625·√3), so dice
+  // whose centres are more than 2R apart on either axis can never overlap. Held dice are lifted by LIFT.
   const SIZE = 1.25, H = SIZE / 2, SPACING = 2.25, R = 1.09, LIFT = 0.42, ROW_Y = -0.18;
-  const NEED_W = 4 * SPACING + 2 * R + 0.5, NEED_H = 2 * R + LIFT + 0.9;
+  const GRID = Q.get('layout') === 'grid', GRID_DX = 2.3, GRID_DY = 1.4;
+  const NEED_W = GRID ? 2 * GRID_DX + 2 * R + 0.5 : 4 * SPACING + 2 * R + 0.5;
+  const NEED_H = GRID ? 2 * GRID_DY + 2 * R + LIFT + 0.6 : 2 * R + LIFT + 0.9;
   function fit(){
     const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight), a = w / h;
     renderer.setSize(w, h);
@@ -153,13 +158,16 @@ try {
     validPoses.push({ e: [e.x, e.y, e.z], q, front });
   }
   const choosePose = face => { const ps = validPoses.filter(p => p.front === face); return ps[Math.floor(Math.random() * ps.length)].e.slice(); };
-  const anchor = i => [(i - 2) * SPACING, ROW_Y, 0];
-  // Small jitter per roll for the moving dice; held dice keep their place. Neighbours stay > 2R apart.
+  const GRID_ANCHORS = [[-GRID_DX, GRID_DY], [0, GRID_DY], [GRID_DX, GRID_DY], [-GRID_DX / 2, -GRID_DY], [GRID_DX / 2, -GRID_DY]];
+  const anchor = i => GRID ? [GRID_ANCHORS[i][0], GRID_ANCHORS[i][1] - LIFT / 2, 0] : [(i - 2) * SPACING, ROW_Y, 0];
+  // Two dice can't overlap when their centres are > 2R apart on x or on y (a lifted die rises by LIFT).
+  const apart = (a, b) => Math.abs(a[0] - b[0]) > 2 * R + 0.002 || Math.abs(a[1] - b[1]) > 2 * R + LIFT + 0.002;
+  // Small jitter per roll for the moving dice; held dice keep their place.
   function choosePositions(from, mask){
     const base = from || [0, 1, 2, 3, 4].map(anchor);
     for (let attempt = 0; attempt < 50; attempt++){
-      const to = base.map((p, i) => (mask && !mask[i]) ? p.slice() : [anchor(i)[0] + (Math.random() - 0.5) * 0.06, ROW_Y + (Math.random() - 0.5) * 0.08, 0]);
-      if (to.every((p, i) => i === 0 || p[0] - to[i - 1][0] > 2 * R + 0.002)) return to;
+      const to = base.map((p, i) => { if (mask && !mask[i]) return p.slice(); const a = anchor(i); return [a[0] + (Math.random() - 0.5) * 0.06, a[1] + (Math.random() - 0.5) * 0.08, 0]; });
+      if (to.every((p, i) => to.every((q, j) => j >= i || apart(p, q)))) return to;
     }
     return base.map(p => p.slice());
   }
@@ -218,6 +226,16 @@ try {
   }
   window.diceUpdate = update;
   window.addEventListener('message', e => update(e.data));
+
+  // Taps (phone): the die under the pointer → { type:'tap', index }. Orthographic camera, so screen → world is linear.
+  renderer.domElement.addEventListener('pointerdown', e => {
+    const r = renderer.domElement.getBoundingClientRect();
+    const x = camera.left + (e.clientX - r.left) / r.width * (camera.right - camera.left);
+    const y = camera.top - (e.clientY - r.top) / r.height * (camera.top - camera.bottom);
+    let best = -1, bd = Infinity;
+    dice.forEach((d, i) => { const p = d.holder.position, dd = Math.hypot(p.x - x, p.y - y); if (dd < bd){ bd = dd; best = i; } });
+    if (best >= 0 && bd < R) dice3dPost({ type: 'tap', index: best });
+  });
 
   // ---- frame loop: renders only while something moves ----
   let last = performance.now(), frames = 0, statFrom = last, maxGap = 0;

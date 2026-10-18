@@ -1,6 +1,8 @@
 import React from 'react';
+import Dice3D from './Dice3D.jsx';
 
 const PIPS = { 1:[4], 2:[0,8], 3:[0,4,8], 4:[0,2,6,8], 5:[0,2,4,6,8], 6:[0,2,3,5,6,8] };
+const DICE3D_QUERY = 'layout=grid&pr=' + Math.min(2, window.devicePixelRatio || 1);
 const fredoka = "'Fredoka',sans-serif";
 const dieFace = 'linear-gradient(145deg,#FFF9EE,#EAD9BE)';
 const label = { fontSize: 12, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: '#8A7A6A' };
@@ -79,6 +81,11 @@ function computeVals(ph){
         anim: spin ? (reduced ? 'none' : `${i % 2 ? 'tumbleLoopA' : 'tumbleLoopB'} ${.5 + i * .06}s linear infinite`) : (!h.rolled || held || reduced) ? 'none' : (((h.rollId||0) % 2 ? 'tumbleA' : 'tumbleB') + ' .55s ease-out'),
         toggle: () => h.rolled && reveal && !ph.shaking && act('hold', i) };
     });
+    // 3D view (same page as the TV): spins with visible pips while I shake, then lands on the server's dice
+    vals.dice3dMsg = { dice: h.dice, held: h.held.map(x => !!(x && h.rolled)), rolled: h.rolled, rollKey: `${g.round}|${g.mode === 'turns' ? g.activeIdx : me.id}|${h.rollId || 0}`,
+      shaking: !!(ph.shaking || ph.rolling), color: me.color, reduced };
+    on.dieTap = i => vals.dice[i] && vals.dice[i].toggle();
+    on.diceSettled = () => act('settled');
     vals.diceOpacity = h.rolled || tumbling ? 1 : .45;
     vals.diceHint = ph.settling || ph.rolling ? t('settling') : ph.shaking ? t('shaking') : h.rolled ? t('tap_to_hold') : ' ';
     vals.servidaVisible = variant === 'generala' && h.rolled && h.rollsLeft === 2 && reveal;
@@ -196,7 +203,9 @@ export default function GeneralaPhone({ phone }){
             {v.tabIsDice && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '18px 18px 20px', gap: 16, minHeight: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontSize: 15, fontWeight: 800, color: '#6E6052' }}>{v.rollsLabel}</span><div style={{ display: 'flex', gap: 6 }}>{v.rollDots.map((d, i) => <i key={i} style={{ width: 12, height: 12, borderRadius: '50%', background: d }} />)}</div></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, padding: '22px 0 10px', flex: 1, alignItems: 'center', minWidth: 0, opacity: v.diceOpacity }}>
+                <div data-dice-area="1" style={{ flex: 1, minHeight: 190, margin: '0 -18px', position: 'relative' }}>
+                <Dice3D query={DICE3D_QUERY} msg={v.dice3dMsg} onTap={on.dieTap} onSettled={on.diceSettled} fallback={
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, padding: '22px 18px 10px', width: '100%', boxSizing: 'border-box', alignItems: 'center', minWidth: 0, opacity: v.diceOpacity }}>
                   {v.dice.map((d, i) => (
                     <button key={i} data-die={i} data-hidden={d.pips.every(p => !p) ? 1 : 0} aria-pressed={d.tagOp === 1} onClick={d.toggle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', padding: 0, transform: `translateY(${d.lift}px)`, transition: 'transform .2s' }}>
                       <span key={d.key} style={{ width: 50, height: 50, borderRadius: 13, background: dieFace, opacity: d.opacity, boxShadow: `inset 0 -4px 0 rgba(0,0,0,.08),0 10px 18px -10px rgba(0,0,0,.6),0 0 0 4px ${d.ring}`, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gridTemplateRows: 'repeat(3,1fr)', padding: 9, boxSizing: 'border-box', placeItems: 'center', animation: d.anim }}>
@@ -205,6 +214,7 @@ export default function GeneralaPhone({ phone }){
                       <span style={{ fontSize: 11, fontWeight: 800, color: d.tagColor, opacity: d.tagOp, textTransform: 'uppercase', letterSpacing: '.04em' }}>✓</span>
                     </button>
                   ))}
+                </div>} />
                 </div>
                 <div style={{ textAlign: 'center', fontSize: 14, color: '#6E6052', fontWeight: 700, textWrap: 'pretty' }}>{v.diceHint}</div>
                 {v.servidaVisible && <div style={{ alignSelf: 'center', background: '#FFD166', borderRadius: 999, padding: '4px 12px', fontWeight: 800, fontSize: 13 }}>{T.served}</div>}
