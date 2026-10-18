@@ -7,11 +7,11 @@
 //   Start the backend with PUBLIC_URL=http://<LAN-IP-of-the-Mac>:5180 so the QR's joinUrl is
 //   reachable from phones (otherwise it would point at 10.0.2.2, which only the VVD can reach).
 //
-// Deployed: switch to the Vercel URL, e.g. 'https://generala-shake.vercel.app' (no trailing slash).
+// Deployed: the Vercel URL (no trailing slash). Switch API_BASE_URL back to LOCAL_API_BASE_URL for local dev.
 export const LOCAL_API_BASE_URL = 'http://10.0.2.2:5180';
-export const VERCEL_API_BASE_URL = 'https://generala-shake.vercel.app';
+export const VERCEL_API_BASE_URL = 'https://generala.taplinko.store';
 
-export const API_BASE_URL: string = LOCAL_API_BASE_URL;
+export const API_BASE_URL: string = VERCEL_API_BASE_URL;
 
 // Live updates: the contract asks for a 1000 ms poll of GET /api/rooms/:code (realtime is optional).
 export const POLL_MS = 1000;
