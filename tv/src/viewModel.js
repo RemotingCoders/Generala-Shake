@@ -30,7 +30,7 @@ export const t = (lang, key, vars) => { const s = (I.STR[lang] || I.STR.en)[key]
 export const catName = (lang, variant, c) => (I.CATS[variant] && I.CATS[variant][lang][c]) || c;
 const initial = n => (n || '?').trim().charAt(0).toUpperCase();
 
-// Narrator line for an event: { k (NARRATOR key), vars, text } or null. k + vars also drive /api/tts.
+// Narrator line for an event: { k (NARRATOR key), v (variant), vars, text } or null. k + vars also drive /api/tts.
 export const feedLine = (lang, g, ev) => I.narratorLine(lang, g, ev);
 
 export function feedText(lang, g, ev){
@@ -95,7 +95,7 @@ export function computeVals(tv, g){
   for (let i = evs.length - 1; i >= 0 && !line; i--) { line = feedLine(lang, g, evs[i]); if (line) lineId = evs[i].id; }
   v.feedVisible = !!(g.narrator && !tv.muted && line); v.feedText = line ? line.text : '';
   // spoken by the narrator voice (ui/Voice.js); `id` = the event id, so each line is said once
-  v.voiceLine = line && g.narrator ? { id: g.roomCode + ':' + lineId, k: line.k, vars: line.vars, text: line.text, lang } : null;
+  v.voiceLine = line && g.narrator ? { id: g.roomCode + ':' + lineId, k: line.k, v: line.v, vars: line.vars, text: line.text, lang } : null;
 
   const rollsLabel = h => h.rollsLeft === 0 ? tt('no_rolls') : h.rollsLeft === 1 ? tt('rolls_left_one') : tt('rolls_left', { n: h.rollsLeft });
   const statusOf = h => h.done ? tt('ready') : (h.rolled && h.rollsLeft === 0) ? tt('choosing') : h.rolled ? tt('rolling') : tt('waiting_roll');

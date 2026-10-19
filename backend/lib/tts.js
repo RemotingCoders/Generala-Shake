@@ -21,7 +21,7 @@ const INSTRUCTIONS = {
 const CAT_NAMES = lang => new Set(Object.values(CATS).flatMap(v => Object.values(v[lang] || {})));
 const int = (v, min, max) => { if (v === undefined || v === null || v === '') return undefined; const n = Number(v); if (!Number.isInteger(n) || n < min || n > max) fail(400, 'badRequest'); return n; };
 
-// query: { lang, k, name?, score?, cat?, n? } → the narrator line
+// query: { lang, k, v? (variant index), name?, score?, cat?, n? } → the narrator line
 export function narratorText(query){
   const lang = query.lang === 'en' ? 'en' : query.lang === 'es' ? 'es' : fail(400, 'badRequest');
   const tpl = NARRATOR[lang][query.k];
@@ -30,7 +30,7 @@ export function narratorText(query){
   if (name.length > 14) fail(400, 'badRequest');
   const cat = query.cat ? String(query.cat) : '';
   if (cat && !CAT_NAMES(lang).has(cat)) fail(400, 'badRequest');
-  return fmt(tpl[0], { name, score: int(query.score, 0, 200), cat, n: int(query.n, 1, 13) });
+  return fmt(tpl[int(query.v, 0, tpl.length - 1) || 0], { name, score: int(query.score, 0, 200), cat, n: int(query.n, 1, 13) });
 }
 
 export async function speak(text, lang){
@@ -93,7 +93,7 @@ export function prewarm(state, events){
   const jobs = [];
   for (const ev of events) for (const lang of ['es', 'en']) {
     const line = narratorLine(lang, state, ev);
-    if (line) jobs.push(narratorAudio({ lang, k: line.k, ...line.vars }).catch(e => console.error('[tts] prewarm', e && (e.code || e.message))));
+    if (line) jobs.push(narratorAudio({ lang, k: line.k, v: line.v, ...line.vars }).catch(e => console.error('[tts] prewarm', e && (e.code || e.message))));
   }
   return jobs.length ? Promise.all(jobs) : null;
 }

@@ -152,22 +152,7 @@ export default class TvApp extends React.Component {
   // ---- narrator text for an event (state.events), as in the prototype ----
   t(lang, key, vars){ const s = (I.STR[lang] || I.STR.en)[key] || key; return vars ? I.fmt(s, vars) : s; }
   cat(lang, variant, c){ return I.CATS[variant][lang][c] || c; }
-  feedText(lang, ev){
-    const g = this.state.game; if (!g) return '';
-    const N = I.NARRATOR[lang]; const p = g.players.find(x => x.id === ev.pid) || (ev.winnerIds && g.players.find(x => x.id === ev.winnerIds[0])) || { name: '?' };
-    const pick = (k) => N[k] ? I.fmt(N[k][0], { name: p.name, score: ev.score, cat: ev.cat ? this.cat(lang, ev.variant || g.variant, ev.cat) : '', n: ev.round }) : null;
-    if (ev.type === 'servidaWin') return pick('servidaWin');
-    if (ev.type === 'yahtzeeBonus') return pick('yahtzeeBonus');
-    if (ev.type === 'lead') return pick('lead');
-    if (ev.type === 'newRound') return pick('newRound');
-    if (ev.type === 'end') return ev.tie ? pick('tie') : pick('end');
-    if (ev.type === 'score') {
-      if (ev.score === 0) return pick('zero');
-      if (ev.cat === 'doble') return pick('doble');
-      if (['generala','poker','full','escalera','yahtzee','large'].includes(ev.cat) && ev.score > 0) return pick(ev.cat);
-    }
-    return null;
-  }
+  feedText(lang, ev){ const l = I.narratorLine(lang, this.state.game, ev); return l ? l.text : null; }
 
   render(){
     const { game, tv, scale, publicUrl, offline } = this.state;

@@ -1,5 +1,6 @@
 // Display-only view model: narrator lines and derived labels from a server state.
 import * as E from '../src/shared/engine';
+import * as I from '../src/shared/i18n';
 import { computeVals, feedText, screenOf } from '../src/viewModel';
 
 const tv = { lang: 'es', muted: false, reduced: true, screen: 'home', helpOpen: false, setup: { variant: 'generala', mode: 'turns', narrator: true, demoLength: 'short' } };
@@ -25,7 +26,8 @@ test('narrator shows the latest event with a line', () => {
   expect(feedText('es', g, g.events[1])).toContain('Beto');
   const v = computeVals(tv, g);
   expect(v.feedVisible).toBe(true);
-  expect(v.feedText).toContain('Póker para Beto');
+  expect(v.feedText).toBe(feedText('es', g, g.events[1])); // the poker line (some variant), not the n3 event
+  expect(v.feedText).toContain('Beto'); expect(v.feedText).toContain('40');
   expect(computeVals({ ...tv, muted: true }, g).feedVisible).toBe(false);
 });
 
@@ -73,6 +75,8 @@ test('potentials wait for the 3D dice to land (settled or timeout)', () => {
 test('voiceLine carries the narrator key + vars for /api/tts, once per event, only with the narrator on', () => {
   const g = { ...game(), events: [{ id: 7, type: 'score', pid: 'a', cat: 'full', score: 30 }] };
   const v = computeVals(tv, g);
-  expect(v.voiceLine).toEqual({ id: g.roomCode + ':7', k: 'full', vars: { name: 'Ana', score: 30, cat: 'Full', n: undefined }, text: 'Full de Ana, 30 puntos. Ordenadito como la mesa del domingo.', lang: 'es' });
+  const vi = I.narratorVariant(g, g.events[0], I.NARRATOR.es.full.length);
+  expect(v.voiceLine).toEqual({ id: g.roomCode + ':7', k: 'full', v: vi, vars: { name: 'Ana', score: 30, cat: 'Full', n: undefined }, text: I.fmt(I.NARRATOR.es.full[vi], { name: 'Ana', score: 30 }), lang: 'es' });
+  expect(v.feedText).toBe(v.voiceLine.text);
   expect(computeVals(tv, { ...g, narrator: false }).voiceLine).toBe(null);
 });

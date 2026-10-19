@@ -1,7 +1,7 @@
 import { cors, send, ApiError } from '../lib/http.js';
 import { narratorAudio } from '../lib/tts.js';
 
-// GET /api/tts?lang=es&k=full&name=Ana&score=30[&cat=…&n=…] → audio/mpeg of that narrator line.
+// GET /api/tts?lang=es&k=full&v=3&name=Ana&score=30[&cat=…&n=…] → audio/mpeg of that narrator line.
 // Usually already generated in the background when the event happened (lib/tts.js prewarm); the CDN also
 // keeps each URL for a year.
 export default async function handler(req, res){
