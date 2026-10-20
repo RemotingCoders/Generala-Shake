@@ -1,5 +1,7 @@
 # Generala
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) — Licencia MIT, ver [LICENSE](LICENSE).
+
 Generala / Yahtzee para la tele: la TV (Fire TV, Vega) muestra la mesa y los celulares de los jugadores son los controles, desde el navegador, escaneando un QR.
 
 ## Estructura
