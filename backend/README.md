@@ -1,69 +1,69 @@
-# Generala · backend + control web
+# Generala · backend + phone controller
 
-Proyecto de Vercel: API serverless (`api/`), control del celular (Vite + React) y web de TV para depurar. Contrato completo en `../docs/ARCHITECTURE.md`.
+Vercel project: serverless API (`api/`), phone controller (Vite + React) and a web TV host for debugging. Full contract in `../docs/ARCHITECTURE.md`.
 
-- `/` — control del celular (lo que abre el QR: `/?room=CODE`).
-- `/?surface=tv` (o `/tv`) — anfitrión web: crear sala, QR, iniciar, pausar, resultados. Se maneja con flechas, Enter y Retroceso. Es un respaldo para depurar; el anfitrión real es la app de Fire TV.
-- `/api/*` — API (ver contrato).
+- `/` — phone controller (what the QR code opens: `/?room=CODE`).
+- `/?surface=tv` (or `/tv`) — web host: create room, QR, start, pause, results. Driven with the arrow keys, Enter and Backspace. It is a fallback for debugging; the real host is the Fire TV app.
+- `/api/*` — API (see the contract).
 
-## Desarrollo local
+## Local development
 
 ```bash
 cd backend
 npm install
-npm run dev                  # http://0.0.0.0:5173 (web + /api juntos)
-npm run dev -- --port 5180   # otro puerto
-npm test                     # partidas completas contra la API (store en memoria)
+npm run dev                  # http://0.0.0.0:5173 (web + /api together)
+npm run dev -- --port 5180   # another port
+npm test                     # full games against the API (in-memory store)
 npm run build
 ```
 
-Sin variables de Supabase la API usa un store en memoria (se pierde al reiniciar, sin Realtime; los clientes hacen polling cada 1 s). En dev, el QR usa la IP de la red local en lugar de `localhost` para que el celular pueda abrirlo (misma Wi-Fi).
+Without the Supabase variables the API uses an in-memory store (lost on restart, no Realtime; clients poll every 1 s). In dev, the QR code uses the LAN IP instead of `localhost` so the phone can open it (same Wi-Fi).
 
-Las reglas (`shared/engine.js`, `shared/i18n.js`) y los dados 3D (`shared/dice3d/`) se editan en la carpeta `shared/` de la raíz y se copian con `node scripts/sync-shared.mjs` (o `npm run sync` desde `backend/`). No editar `backend/shared/` ni `backend/public/dice3d/` a mano.
+The rules (`shared/engine.js`, `shared/i18n.js`) and the 3D dice (`shared/dice3d/`) are edited in the root `shared/` folder and copied with `node scripts/sync-shared.mjs` (or `npm run sync` from `backend/`). Do not edit `backend/shared/` or `backend/public/dice3d/` by hand.
 
-## Agitar y dados 3D
+## Shaking and 3D dice
 
-- Celular: mantener apretado **Tirar** (o sacudir el celular, con el permiso de movimiento) manda `play {action:'shake', active:true}`; al soltar (o cuando el celular se queda quieto) manda `roll`. Un toque corto tira directo. La detección usa `ShakeDetector` de `shared/dice3d/motion-engine.js`.
-- Después de cada tirada el celular esconde los dados nuevos durante `DICE_SETTLE_MS` (5 s, el tiempo que tardan en caer en la TV); los dados guardados siguen a la vista. Recién ahí se puede guardar dados o anotar.
-- TV web (`/?surface=tv`): en modo por turnos los dados son la vista 3D `/dice3d/index.html` en un iframe; si no carga en 4 s o reporta error, vuelve a los dados 2D. El cartel del turno muestra "Agitando…".
+- Phone: holding **Roll** (or shaking the phone, with the motion permission) sends `play {action:'shake', active:true}`; releasing (or when the phone comes to rest) sends `roll`. A short tap rolls right away. Detection uses `ShakeDetector` from `shared/dice3d/motion-engine.js`.
+- After each roll the phone hides the new dice for `DICE_SETTLE_MS` (5 s, the time they take to land on the TV); held dice stay visible. Only then can dice be held or a category scored.
+- Web TV (`/?surface=tv`): in turns mode the dice are the 3D view `/dice3d/index.html` in an iframe; if it does not load within 4 s or reports an error, it falls back to the 2D dice. The turn banner shows "Shaking…".
 
-## Variables de entorno
+## Environment variables
 
-| Variable | Uso |
+| Variable | Purpose |
 |---|---|
-| `SUPABASE_URL` | URL del proyecto (`https://xxxx.supabase.co`) |
-| `SUPABASE_SERVICE_ROLE_KEY` | clave `service_role` (solo servidor; nunca en el cliente) |
-| `SUPABASE_ANON_KEY` | clave `anon` (la reciben los clientes por `/api/config` para Realtime) |
-| `PUBLIC_URL` | opcional: URL pública para el QR (si no, se deriva del host del pedido) |
+| `SUPABASE_URL` | project URL (`https://xxxx.supabase.co`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key (server only; never in the client) |
+| `SUPABASE_ANON_KEY` | `anon` key (clients receive it from `/api/config` for Realtime) |
+| `PUBLIC_URL` | optional: public URL for the QR code (otherwise derived from the request host) |
 
-Para dev con Supabase: copiar `.env.example` a `.env.local` y completar.
+For dev with Supabase: copy `.env.example` to `.env.local` and fill it in.
 
 ## Supabase
 
-1. Crear un proyecto en [supabase.com](https://supabase.com) (región cercana a los jugadores).
-2. SQL Editor → pegar y ejecutar `supabase/schema.sql` (crea `rooms`, `room_secrets`, RLS, la función `add_player_token` y agrega `rooms` a la publicación de Realtime).
-3. Project Settings → API: copiar la URL, la `anon` key y la `service_role` key.
-4. Opcional, limpieza de salas vencidas: Database → Extensions → habilitar `pg_cron` y ejecutar
+1. Create a project at [supabase.com](https://supabase.com) (region close to the players).
+2. SQL Editor → paste and run `supabase/schema.sql` (creates `rooms`, `room_secrets`, RLS, the `add_player_token` function and adds `rooms` to the Realtime publication).
+3. Project Settings → API: copy the URL, the `anon` key and the `service_role` key.
+4. Optional, cleanup of expired rooms: Database → Extensions → enable `pg_cron` and run
    `select cron.schedule('generala-cleanup', '0 * * * *', $$select public.cleanup_expired_rooms()$$);`
 
-## Deploy en Vercel
+## Deploy on Vercel
 
-1. Importar el repo en Vercel.
-2. **Root Directory: `backend`**. Framework Preset: **Vite** (build `npm run build`, output `dist`). Las funciones de `api/` se detectan solas (runtime Node).
-3. Environment Variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY` (y `PUBLIC_URL` si se usa un dominio propio).
-4. Deploy. Probar `https://TU-APP.vercel.app/api/config` → debe devolver `"realtime": true`.
+1. Import the repo in Vercel.
+2. **Root Directory: `backend`**. Framework Preset: **Vite** (build `npm run build`, output `dist`). The functions in `api/` are detected automatically (Node runtime).
+3. Environment Variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY` (and `PUBLIC_URL` if you use a custom domain).
+4. Deploy. Check `https://YOUR-APP.vercel.app/api/config` → it must return `"realtime": true`.
 
-`vercel.json` solo agrega la reescritura de rutas del SPA (`/tv`) sin tocar `/api`.
+`vercel.json` only adds the SPA route rewrite (`/tv`) without touching `/api`.
 
-## Apuntar la app de TV
+## Pointing the TV app at the server
 
-En `tv/src/config.ts` poner la URL base de la API: `https://TU-APP.vercel.app` (producción) o `http://IP-DE-TU-MAC:5173` (dev local en la misma red). La TV crea la sala con `POST /api/rooms` y muestra el `joinUrl` que devuelve el servidor en el QR.
+In `tv/src/config.ts` set the API base URL: `https://YOUR-APP.vercel.app` (production) or `http://YOUR-MAC-IP:5173` (local dev on the same network). The TV creates the room with `POST /api/rooms` and shows the `joinUrl` returned by the server in the QR code.
 
-## Voz del relator (OpenAI)
+## Narrator voice (OpenAI)
 
-`GET /api/tts` genera el audio de cada frase del relator con OpenAI (`gpt-4o-mini-tts`). Cargá en Vercel → Settings → Environment Variables:
+`GET /api/tts` generates the audio for each narrator line with OpenAI (`gpt-4o-mini-tts`). Set in Vercel → Settings → Environment Variables:
 
-- `OPENAI_API_KEY` (obligatoria para que la tele hable; sin ella `/api/tts` responde 503 y la tele queda en silencio)
-- Opcionales: `OPENAI_TTS_VOICE` (por defecto `ash`), `OPENAI_TTS_MODEL` (por defecto `gpt-4o-mini-tts`)
+- `OPENAI_API_KEY` (required for the TV to speak; without it `/api/tts` answers 503 and the TV stays silent)
+- Optional: `OPENAI_TTS_VOICE` (default `ash`), `OPENAI_TTS_MODEL` (default `gpt-4o-mini-tts`)
 
-Solo acepta frases del relator (tipo de frase + nombre/puntaje/categoría/ronda), no texto libre. Cada frase distinta se genera una sola vez y después la sirve la CDN de Vercel.
+It only accepts narrator lines (line type + name/score/category/round), not free text. Each distinct line is generated once and then served by Vercel's CDN.

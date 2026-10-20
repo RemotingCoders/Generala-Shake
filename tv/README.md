@@ -1,120 +1,121 @@
-# Generala — app de TV (Vega OS / Fire TV)
+# Generala — TV app (Vega OS / Fire TV)
 
-App anfitriona para Fire TV hecha con **React Native para Vega** (RN 0.83, `@amazon-devices/react-native-kepler` 4.x).
-La tele crea la sala, muestra el QR y el código, los dados, la planilla, el relator y los resultados; los
-jugadores se unen y juegan desde el navegador del celular. El servidor (`backend/`) es la única fuente de verdad.
+Host app for Fire TV built with **React Native for Vega** (RN 0.83, `@amazon-devices/react-native-kepler` 4.x).
+The TV creates the room, shows the QR code and the room code, the dice, the score sheet, the narrator and the
+results; players join and play from their phone's browser. The server (`backend/`) is the single source of truth.
 
-## Requisitos
+## Requirements
 
-- macOS con Vega SDK 0.24 y Vega CLI (`~/vega/bin/vega`, probado con 1.4.4).
-- Node 20+ (probado con 24) y npm.
-- Vega Virtual Device (VVD) instalado con el SDK.
-- El backend corriendo (local o en Vercel), ver `backend/` y `docs/ARCHITECTURE.md`.
+- macOS with Vega SDK 0.24 and the Vega CLI (`~/vega/bin/vega`, tested with 1.4.4).
+- Node 20+ (tested with 24) and npm.
+- Vega Virtual Device (VVD) installed with the SDK.
+- The backend running (locally or on Vercel), see `backend/` and `docs/ARCHITECTURE.md`.
 
-## Instalar dependencias
+## Install dependencies
 
 ```bash
 cd tv
 npm install
 ```
 
-Los archivos `src/shared/engine.js` e `i18n.js` se generan desde `shared/`: `node scripts/sync-shared.mjs` (desde la raíz).
+`src/shared/engine.js` and `i18n.js` are generated from `shared/`: `node scripts/sync-shared.mjs` (from the repo root).
 
-## Compilar
+## Build
 
 ```bash
 cd tv
-scripts/build.sh Debug      # o Release
+scripts/build.sh Debug      # or Release
 ```
 
-El paquete queda en `build/aarch64-debug/generala_aarch64.vpkg` (VVD en Mac Apple Silicon) y también se generan
-`armv7` (Fire TV reales) y `x86_64`.
+The package ends up in `build/aarch64-debug/generala_aarch64.vpkg` (VVD on Apple Silicon Macs); `armv7` (physical
+Fire TV devices) and `x86_64` are built as well.
 
-> La toolchain de Vega falla si la ruta del proyecto tiene espacios (`kepler-module-manifest-builder` ejecuta un
-> comando sin comillas). `scripts/build.sh` lo detecta, copia `tv/` a `/tmp/generala-tv-build` (cambiable con
-> `VEGA_BUILD_DIR`), compila ahí y trae `build/` de vuelta. Sin espacios en la ruta, equivale a
+> The Vega toolchain fails when the project path contains spaces (`kepler-module-manifest-builder` runs an
+> unquoted command). `scripts/build.sh` detects this, mirrors `tv/` into `/tmp/generala-tv-build` (override with
+> `VEGA_BUILD_DIR`), builds there and copies `build/` back. Without spaces in the path it is equivalent to
 > `npx react-native build-vega --build-type Debug`.
 
 ## Virtual device
 
 ```bash
-vega virtual-device start      # abre el emulador (tarda ~1 min la primera vez)
+vega virtual-device start      # opens the emulator (about 1 min the first time)
 vega virtual-device status
-vega device list               # debería listar "VirtualDevice : tv - aarch64"
+vega device list               # should list "VirtualDevice : tv - aarch64"
 ```
 
-## Instalar y abrir
+## Install and launch
 
 ```bash
 vega run-app build/aarch64-debug/generala_aarch64.vpkg com.generalashake.tv.main
-# o por partes:
+# or step by step:
 vega device install-app ... / vega device launch-app --appName com.generalashake.tv.main
 vega device terminate-app --appName com.generalashake.tv.main
 ```
 
-Reinstalar borra los datos de la app (la sala guardada); cerrar y volver a abrir la app la conserva.
+Reinstalling wipes the app data (the saved room); closing and reopening the app keeps it.
 
-## Servidor (API_BASE_URL)
+## Server (API_BASE_URL)
 
-Se configura en `src/config.ts`:
+Configured in `src/config.ts`:
 
 ```ts
 export const API_BASE_URL: string = LOCAL_API_BASE_URL;   // 'http://10.0.2.2:5180'
-// export const API_BASE_URL: string = VERCEL_API_BASE_URL; // 'https://<tu-proyecto>.vercel.app'
+// export const API_BASE_URL: string = VERCEL_API_BASE_URL; // 'https://<your-project>.vercel.app'
 ```
 
-- **Local**: el VVD es una VM QEMU con red de usuario; desde adentro, la Mac es **`10.0.2.2`** (también funciona la IP
-  de la Mac en la LAN). Levantá el backend con
+- **Local**: the VVD is a QEMU VM with user networking; from inside it, the Mac is **`10.0.2.2`** (the Mac's LAN IP
+  works too). Start the backend with
   `cd backend && npm run dev -- --port 5180`.
-  El `joinUrl` del QR lo arma el servidor según el host del pedido; como la tele llama a `10.0.2.2`, conviene
-  arrancar el backend con `PUBLIC_URL=http://<IP-LAN-de-la-Mac>:5180` para que el QR funcione desde un celular.
-- **Vercel**: cambiá `API_BASE_URL` a la URL desplegada (sin `/` final) y recompilá.
+  The server builds the QR `joinUrl` from the request host; since the TV calls `10.0.2.2`, start the backend with
+  `PUBLIC_URL=http://<your-Mac-LAN-IP>:5180` so the QR code works from a phone.
+- **Vercel**: set `API_BASE_URL` to the deployed URL (no trailing `/`) and rebuild.
 
-Actualizaciones en vivo: polling de `GET /api/rooms/:code` cada 1000 ms (se ignoran estados con `seq` menor).
-No se usa Supabase Realtime en la tele.
+Live updates: polling `GET /api/rooms/:code` every 1000 ms (states with a lower `seq` are ignored).
+The TV does not use Supabase Realtime.
 
-## Dados 3D
+## 3D dice
 
-En la partida por turnos, la bandeja muestra dados 3D (Three.js r170) dentro de un WebView
-(`@amazon-devices/webview` 4.0.2; el `manifest.toml` declara el módulo webview y el servicio
-`com.amazon.webview.renderer_service`).
+In turns mode the tray shows 3D dice (Three.js r170) inside a WebView
+(`@amazon-devices/webview` 4.0.2; `manifest.toml` declares the webview module and the
+`com.amazon.webview.renderer_service` service).
 
-- La página es `assets/dice3d/` (`index.html`, `motion-engine.js`, `three.classic.js`): son **copias generadas** de
-  `shared/dice3d/` con `node scripts/sync-shared.mjs` (desde la raíz). No editarlas acá.
-- `src/ui/Dice3D.js` la alimenta con `window.diceUpdate({dice, held, rolled, rollId, shaking, color, reduced})`
-  (protocolo en `docs/ARCHITECTURE.md`, "3D dice view"). Mientras el jugador agita el celular los dados giran y el
-  estado dice "Agitando…"; con una tirada nueva frenan en 5 s sobre los valores del servidor. Los dados guardados
-  no giran: quedan levantados y con un marco del color del jugador. La planilla muestra los puntajes posibles recién
-  cuando los dados caen.
-- Si el WebView no carga (o no responde en 12 s) se usan los dados 2D de siempre. El modo simultáneo usa siempre 2D.
-- El WebView no toma el foco del control remoto (los botones de arriba tienen `nextFocusDown` hacia sí mismos).
-- Depuración: en `src/config.ts`, `DICE3D_DEBUG_URL = 'http://10.0.2.2:8766'` manda cada mensaje del WebView
-  (`ready`, `settled` con las caras leídas de la escena, `stats` con fps) a un receptor HTTP en la Mac.
-  `DICE3D_ENABLED = false` vuelve a los dados 2D.
+- The page is `assets/dice3d/` (`index.html`, `motion-engine.js`, `three.classic.js`): these are **generated copies**
+  of `shared/dice3d/` made with `node scripts/sync-shared.mjs` (from the repo root). Do not edit them here.
+- `src/ui/Dice3D.js` feeds it with `window.diceUpdate({dice, held, rolled, rollId, shaking, color, reduced})`
+  (protocol in `docs/ARCHITECTURE.md`, "3D dice view"). While the player shakes the phone the dice spin and the
+  status reads "Shaking…"; on a new roll they brake within 5 s onto the server's values. Held dice do not spin:
+  they stay raised with a frame in the player's color. The score sheet shows the possible scores only once the
+  dice have landed.
+- If the WebView does not load (or does not answer within 12 s) the usual 2D dice are used. Simultaneous mode
+  always uses 2D.
+- The WebView never takes remote-control focus (the buttons above it have `nextFocusDown` pointing at themselves).
+- Debugging: in `src/config.ts`, `DICE3D_DEBUG_URL = 'http://10.0.2.2:8766'` sends every WebView message
+  (`ready`, `settled` with the faces read from the scene, `stats` with fps) to an HTTP receiver on the Mac.
+  `DICE3D_ENABLED = false` falls back to the 2D dice.
 
-## Control remoto (D-pad)
+## Remote control (D-pad)
 
-| Tecla | Acción |
+| Key | Action |
 |---|---|
-| Flechas | Mover el foco (navegación espacial nativa de Vega; el foco se marca con un aro amarillo) |
-| OK / Select | Elegir |
-| Atrás | Ayuda → cerrar · Configuración → inicio · Sala de espera → cerrar sala · Partida → pausar/reanudar · Resultados / sala cerrada → inicio · Inicio → salir de la app |
+| Arrows | Move focus (Vega's native spatial navigation; focus is shown with a yellow ring) |
+| OK / Select | Choose |
+| Back | Help → close · Settings → home · Lobby → close room · Game → pause/resume · Results / closed room → home · Home → exit the app |
 
-En el emulador: flechas y Enter del teclado; Esc = Atrás. Para automatizar:
+In the emulator: keyboard arrows and Enter; Esc = Back. To automate:
 `vda shell 'inputd-cli button_press KEY_RIGHT'` (`KEY_ENTER`, `KEY_BACK`, ...).
 
-## Estructura
+## Layout
 
-- `src/App.js` — estado, flujo del anfitrión, polling, tecla Atrás, persistencia de `{code, hostToken, joinUrl}`.
-- `src/screens.js` — pantallas (inicio, configuración, sala, partida por turnos / simultánea, pausa, resultados, sala cerrada, ayuda).
-- `src/viewModel.js` — datos de pantalla derivados del estado del servidor (no calcula resultados).
-- `src/ui/` — escalado 1280×720 → pantalla real, botones enfocables, dados, QR (`qrcode-generator`), relator.
+- `src/App.js` — state, host flow, polling, Back key, persistence of `{code, hostToken, joinUrl}`.
+- `src/screens.js` — screens (home, settings, lobby, turns / simultaneous game, pause, results, closed room, help).
+- `src/viewModel.js` — screen data derived from the server state (it does not compute results).
+- `src/ui/` — 1280×720 → real screen scaling, focusable buttons, dice, QR (`qrcode-generator`), narrator.
 - `src/api.js`, `src/storage.js`, `src/config.ts`.
-- `assets/fonts/` — Fredoka y Nunito (OFL). Vega registra cada fuente por nombre de archivo (`Nunito-Bold`, ...).
+- `assets/fonts/` — Fredoka and Nunito (OFL). Vega registers each font by file name (`Nunito-Bold`, ...).
 - `test/` — `npm test` (Jest).
 
-## Voz del relator
+## Narrator voice
 
-Las frases del relator se escuchan por el parlante de la tele: `src/ui/Voice.js` reproduce el MP3 de `GET <API>/api/tts` (OpenAI, ver `backend/README.md`) con el reproductor nativo de Vega (`AudioPlayer` de `@amazon-devices/react-native-w3cmedia`). Respeta "Silenciar" y el relator apagado. Requiere `OPENAI_API_KEY` en Vercel; sin ella la tele queda en silencio sin errores visibles.
+The narrator lines play through the TV speakers: `src/ui/Voice.js` plays the MP3 from `GET <API>/api/tts` (OpenAI, see `backend/README.md`) with Vega's native player (`AudioPlayer` from `@amazon-devices/react-native-w3cmedia`). It honors "Mute" and the narrator being off. Requires `OPENAI_API_KEY` on Vercel; without it the TV stays silent with no visible error.
 
-El audio desde un WebView no funciona en Vega (sin voces de `speechSynthesis`, `<audio>` trabado, Web Audio sin salida), por eso la voz es nativa. Con `VOICE_DEBUG_URL` en `src/config.ts` la app dice una frase fija al arrancar, útil para probar los parlantes. En el emulador el sonido sale por la salida de audio que tenía la Mac al arrancar el emulador: si la cambiás, reiniciá el emulador.
+Audio from a WebView does not work on Vega (no `speechSynthesis` voices, `<audio>` stalls, Web Audio has no output), which is why the voice is native. With `VOICE_DEBUG_URL` in `src/config.ts` the app says a fixed line at startup, handy for testing the speakers. In the emulator, sound comes out of whatever audio output the Mac had when the emulator started: if you change it, restart the emulator.

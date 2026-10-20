@@ -1,20 +1,20 @@
 # Generala
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) — Licencia MIT, ver [LICENSE](LICENSE).
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) — MIT License, see [LICENSE](LICENSE).
 
-Generala / Yahtzee para la tele: la TV (Fire TV, Vega) muestra la mesa y los celulares de los jugadores son los controles, desde el navegador, escaneando un QR.
+Generala / Yahtzee for the living-room TV: the TV (Fire TV, Vega OS) shows the table and the players' phones are the controllers, from the browser, by scanning a QR code.
 
-## Estructura
+## Layout
 
-- `shared/` — `engine.js` (reglas, funciones puras) e `i18n.js` (textos es / en). Se editan solo acá; `node scripts/sync-shared.mjs` los copia a `backend/shared/` y `tv/src/shared/`.
-- `backend/` — proyecto de Vercel: API serverless (`api/`, lógica en `lib/`), control web del celular y anfitrión web para depurar (Vite + React), esquema de Supabase. Ver `backend/README.md`.
-- `tv/` — app de Fire TV (Vega / React Native): el anfitrión.
-- `docs/ARCHITECTURE.md` — contrato de la API y del estado de la sala.
+- `shared/` — `engine.js` (rules, pure functions) and `i18n.js` (es / en strings). Edit them only here; `node scripts/sync-shared.mjs` copies them into `backend/shared/` and `tv/src/shared/`.
+- `backend/` — Vercel project: serverless API (`api/`, logic in `lib/`), the phone web controller and a web host for debugging (Vite + React), Supabase schema. See `backend/README.md`.
+- `tv/` — Fire TV app (Vega OS / React Native): the host.
+- `docs/ARCHITECTURE.md` — API contract and room state.
 
-## Probar rápido (local)
+## Quick start (local)
 
 ```bash
 cd backend && npm install && npm run dev
 ```
 
-Abrí `http://localhost:5173/?surface=tv` para crear una sala y escaneá el QR con el celular (misma Wi-Fi). Sin Supabase configurado la API usa un store en memoria.
+Open `http://localhost:5173/?surface=tv` to create a room and scan the QR code with your phone (same Wi-Fi). Without Supabase configured the API uses an in-memory store.
