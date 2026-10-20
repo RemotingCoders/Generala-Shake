@@ -95,7 +95,7 @@ export const STR = {
     joined: 'Ya estás adentro', waiting_host: 'Esperando que el anfitrión inicie la partida…', rules: 'Reglas',
     motion_title: 'Tirar sacudiendo el celular', motion_desc: 'Podés tirar los dados con un movimiento de muñeca. Pedimos permiso al sensor una sola vez.', motion_allow: 'Activar movimiento', motion_skip: 'Jugar con el botón',
     motion_denied: 'Permiso rechazado. Podés seguir jugando con el botón.', motion_unavailable: 'Este dispositivo no tiene sensor de movimiento. Jugás con el botón.', motion_on: 'Sacudí para tirar',
-    your_turn: 'Es tu turno', roll: 'Tirar', roll_again: 'Volver a tirar', shake_hint: 'o sacudí el celular', processing: 'Procesando…', shaking: 'Agitando…', hold_to_shake: 'Mantené apretado o sacudí el celular', settling: 'Los dados están cayendo…', tap_to_hold: 'Tocá los dados que querés conservar',
+    your_turn: 'Es tu turno', roll: 'Tirar', roll_again: 'Volver a tirar', shake_hint: 'o sacudí el celular', processing: 'Procesando…', shaking: 'Agitando…', hold_to_shake: 'Mantené apretado o sacudí el celular', settling: 'Los dados están cayendo…', holding: 'Fijando el dado…', tap_to_hold: 'Tocá los dados que querés conservar',
     choose_cat: 'Elegí dónde anotar', confirm: 'Anotar', confirm_zero_title: '¿Anotar cero en {cat}?', confirm_zero_desc: 'La casilla queda cerrada para el resto de la partida.', confirm_zero_yes: 'Sí, tachar', cancel: 'Cancelar',
     used: 'Usada', locked: 'Bloqueada', forced: 'Obligatoria (comodín)', pts: '{n} pts',
     see_dice: 'Dados', see_sheet: 'Planilla',
@@ -104,6 +104,7 @@ export const STR = {
     err_notfound: 'Esa sala no existe', err_full: 'La sala está llena', err_expired: 'La sala venció', err_started: 'La partida ya empezó', try_again: 'Probar otro código',
     err_closed: 'El anfitrión cerró la sala', waiting_rematch: 'Esperando que el anfitrión arme la revancha…', or_enter_code_url: 'o entrá a {url} y escribí el código',
     reconnecting_title: 'Reconectando…', reconnecting_desc: 'Perdimos la conexión. Tu lugar y tus puntos están guardados.', simulate_reconnect: 'Reconectar',
+    alert_tap: 'Tocá la pantalla para activar el aviso de tu turno', alert_test: 'Probar aviso de turno',
     you: 'vos', host: 'Anfitrión', players_n: '{n} jugadores', reduced_motion: 'Movimiento reducido',
   },
   en: {
@@ -139,7 +140,7 @@ export const STR = {
     joined: "You're in", waiting_host: 'Waiting for the host to start the game…', rules: 'Rules',
     motion_title: 'Roll by shaking your phone', motion_desc: 'You can roll the dice with a flick of the wrist. We ask for sensor permission just once.', motion_allow: 'Enable motion', motion_skip: 'Play with the button',
     motion_denied: 'Permission denied. You can keep playing with the button.', motion_unavailable: 'This device has no motion sensor. You play with the button.', motion_on: 'Shake to roll',
-    your_turn: 'Your turn', roll: 'Roll', roll_again: 'Roll again', shake_hint: 'or shake your phone', processing: 'Processing…', shaking: 'Shaking…', hold_to_shake: 'Hold or shake your phone', settling: 'Dice are landing…', tap_to_hold: 'Tap the dice you want to keep',
+    your_turn: 'Your turn', roll: 'Roll', roll_again: 'Roll again', shake_hint: 'or shake your phone', processing: 'Processing…', shaking: 'Shaking…', hold_to_shake: 'Hold or shake your phone', settling: 'Dice are landing…', holding: 'Holding the die…', tap_to_hold: 'Tap the dice you want to keep',
     choose_cat: 'Choose where to score', confirm: 'Score it', confirm_zero_title: 'Score zero in {cat}?', confirm_zero_desc: 'That box stays closed for the rest of the game.', confirm_zero_yes: 'Yes, scratch it', cancel: 'Cancel',
     used: 'Used', locked: 'Locked', forced: 'Required (joker)', pts: '{n} pts',
     see_dice: 'Dice', see_sheet: 'Sheet',
@@ -148,6 +149,7 @@ export const STR = {
     err_notfound: "That room doesn't exist", err_full: 'The room is full', err_expired: 'The room expired', err_started: 'The game already started', try_again: 'Try another code',
     err_closed: 'The host closed the room', waiting_rematch: 'Waiting for the host to set up a rematch…', or_enter_code_url: 'or go to {url} and type the code',
     reconnecting_title: 'Reconnecting…', reconnecting_desc: 'We lost the connection. Your seat and your points are saved.', simulate_reconnect: 'Reconnect',
+    alert_tap: 'Tap the screen to turn on your turn alert', alert_test: 'Test the turn alert',
     you: 'you', host: 'Host', players_n: '{n} players', reduced_motion: 'Reduced motion',
   },
 };

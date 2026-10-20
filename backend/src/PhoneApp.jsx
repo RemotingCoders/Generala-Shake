@@ -4,7 +4,7 @@ import * as I from '../shared/i18n.js';
 import GeneralaPhone from './GeneralaPhone.jsx';
 import { rooms, watchRoom, isOffline, store } from './api.js';
 import { ShakeDetector } from './motion.js';
-import { armTurnAlert, turnAlert } from './alert.js';
+import { armTurnAlert, turnAlert, keepAwake, needsTap } from './alert.js';
 
 const PREF = 'generala.phone.pref';       // { lang, name, color, motion, motionDone } — per device
 const SESSION = 'generala.phone.session'; // { code, playerToken, playerId } — so a reload rejoins
@@ -33,7 +33,10 @@ export default class PhoneApp extends React.Component {
       shaking: false,   // my shake gesture is on (button held or phone shaking) and `shake active:true` was sent
       rolling: false,   // the roll request is in flight
       settling: false,  // my new dice are landing on the TV (DICE_SETTLE_MS): values hidden, hold/score disabled
+      holding: false,   // a `hold` request is in flight: dice, roll, shake and score wait until the server confirms it
       reduced: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      tapNeeded: false, // sound/vibration blocked until the page is touched (e.g. after an auto-rejoin)
+      turnFlash: 0,     // time of the last turn alert: the phone flashes for a moment
     };
   }
 
@@ -46,10 +49,13 @@ export default class PhoneApp extends React.Component {
     document.addEventListener('visibilitychange', this.onVisible);
     if (this.state.motion === 'granted') this.resumeMotion();
     armTurnAlert();
+    this.setState({ tapNeeded: needsTap() });
+    window.addEventListener('pointerdown', this.onFirstTouch, { passive: true });
   }
+  onFirstTouch = () => { if (this.state.tapNeeded) this.setState({ tapNeeded: false }); };
   componentWillUnmount(){
     clearInterval(this.pingTimer); clearTimeout(this.retryTimer); clearTimeout(this.settleTimer); clearInterval(this.motionTimer); clearInterval(this.shakeKeepAlive); clearTimeout(this.press && this.press.timer);
-    document.removeEventListener('visibilitychange', this.onVisible); this.unwatch(); window.removeEventListener('devicemotion', this.onMotion);
+    document.removeEventListener('visibilitychange', this.onVisible); window.removeEventListener('pointerdown', this.onFirstTouch); keepAwake(false); this.unwatch(); window.removeEventListener('devicemotion', this.onMotion);
   }
 
   savePref(patch){ store.set(PREF, { ...(store.get(PREF) || {}), ...patch }); }
@@ -77,7 +83,7 @@ export default class PhoneApp extends React.Component {
     const patch = { game: s };
     if (me && s.closed) { this.roomGone('closed'); return; }
     if (me && isMyTurn(s, me) && !isMyTurn(prev, me)) {
-      if (prev) turnAlert(); // vibration + chime; not on the first state after a (re)load
+      if (prev) { turnAlert(); patch.turnFlash = Date.now(); } // vibration + chime + flash; not on the first state after a (re)load
       patch.tab = 'dice'; patch.pick = null; patch.confirmZero = null;
     }
     if (me && !isMyTurn(s, me)) {
@@ -89,6 +95,7 @@ export default class PhoneApp extends React.Component {
     if (key && key !== this.rollKey && this.rollKey !== undefined && document.visibilityState === 'visible') this.startSettle(patch);
     else if (!key && this.state.settling) { clearTimeout(this.settleTimer); patch.settling = false; }
     if (me) this.rollKey = key;
+    keepAwake(!!me && (s.phase === 'lobby' || s.phase === 'playing')); // a locked phone can't alert
     this.setState(patch);
   }
 
@@ -110,6 +117,7 @@ export default class PhoneApp extends React.Component {
   };
 
   roomGone(code){
+    keepAwake(false);
     this.unwatch(); store.set(SESSION, null);
     this.setState({ error: code, game: null, me: null, token: null, offline: false, busy: false });
   }
@@ -178,7 +186,20 @@ export default class PhoneApp extends React.Component {
   // shake/roll requests are chained so a `shake` never overtakes the `roll` that follows it
   send(action, extra){ const p = this.chain.then(() => this.play(action, extra)); this.chain = p.catch(() => {}); return p; }
 
-  canRoll(){ const st = this.state, g = st.game; return !!st.me && isMyTurn(g, st.me) && handOf(g, st.me).rollsLeft > 0 && !st.busy && !st.rolling && !st.settling && !st.offline; }
+  canRoll(){ const st = this.state, g = st.game; return !!st.me && isMyTurn(g, st.me) && handOf(g, st.me).rollsLeft > 0 && !st.busy && !st.rolling && !st.settling && !st.holding && !st.offline; }
+
+  // hold/release a die: shown at once, but the screen stays locked until the server confirms it, so a roll can't
+  // go out with the wrong dice held. Goes through the same chain as shake/roll so a roll never overtakes it.
+  async hold(i){
+    const st = this.state, g = st.game;
+    if (st.settling || st.shaking || st.rolling || st.holding || st.busy) return;
+    const r = E.toggleHold(g, st.me, i); if (r.error) return;
+    const optimistic = { ...r.state, seq: g.seq }; // shown now; the server's answer replaces it
+    this.setState({ holding: true, game: optimistic });
+    const s = await this.send('hold', { index: i });
+    if (!s && this.state.game === optimistic) this.setState({ game: g }); // request failed and nothing newer arrived: undo
+    this.setState({ holding: false });
+  }
 
   // ---- live shake: press-and-hold on the Roll button or ShakeDetector on devicemotion ----
   beginShake(src){
@@ -245,6 +266,7 @@ export default class PhoneApp extends React.Component {
       case 'tab': if (arg !== 'dice') { this.cancelPress(); if (this.shakeSrc) this.finishShake(false); } this.setState({ tab: arg }); break;
       case 'rules': this.setState({ showRules: !st.showRules }); break;
       case 'roll': this.roll(); break;
+      case 'testAlert': turnAlert(); this.setState({ turnFlash: Date.now(), tapNeeded: false }); break;
       // the 3D dice landed: reveal now instead of waiting for the timer. A reloaded view snaps and reports at once,
       // so only a landing near the end of the real brake counts.
       case 'settled': if (st.settling && Date.now() >= this.settleEnd - 1500) this.endSettle(); break;
@@ -252,15 +274,10 @@ export default class PhoneApp extends React.Component {
       case 'rollUp': this.rollUp(arg); break;
       case 'rollCancel': this.rollCancel(arg); break;
       case 'rollClick': this.rollClick(arg); break;
-      case 'hold': {
-        if (st.settling || st.shaking || st.rolling) return;
-        const r = E.toggleHold(g, st.me, arg); if (r.error) return;
-        this.setState({ game: { ...r.state, seq: g.seq } }); // optimistic; the server's answer replaces it
-        this.play('hold', { index: arg }); break;
-      }
+      case 'hold': this.hold(arg); break;
       case 'pick': this.setState({ pick: arg }); break;
       case 'confirm': {
-        if (!st.pick || st.busy || st.settling || st.rolling || st.shaking) return;
+        if (!st.pick || st.busy || st.settling || st.rolling || st.shaking || st.holding) return;
         const pot = E.handPotential(g, st.me); if (!pot) return;
         if (pot.scores[st.pick] === 0 && !arg) { this.setState({ confirmZero: st.pick }); return; }
         this.setState({ busy: true });

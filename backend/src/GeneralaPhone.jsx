@@ -57,6 +57,11 @@ function computeVals(ph){
   if (!g || !me) return vals;
   vals.me = { name: me.name, color: me.color, initial: initial(me.name) };
   vals.others = g.players.map(p => ({ key: p.id, name: p.name, color: p.color, initial: initial(p.name), connLabel: t(p.connected ? 'connected' : 'reconnecting'), connColor: p.connected ? '#2A9D8F' : '#C98A1B' }));
+  // turn alert: ask for a touch when sound/vibration are still blocked; flash the screen when the turn starts
+  vals.tapNeeded = !!ph.tapNeeded && (g.phase === 'lobby' || g.phase === 'playing');
+  vals.flashKey = ph.turnFlash && Date.now() - ph.turnFlash < 2500 ? ph.turnFlash : 0;
+  vals.alertTest = () => act('testAlert');
+  vals.flashAnim = reduced ? 'turnFlashFade 1.2s ease-out forwards' : 'turnFlash 1.6s ease-out forwards';
   vals.motionNote = ph.motion === 'denied' || ph.motion === 'unavailable' || ph.motion === 'granted';
   vals.motionNoteText = ph.motion === 'denied' ? t('motion_denied') : ph.motion === 'unavailable' ? t('motion_unavailable') : t('motion_on');
   vals.roundLabel = g.phase === 'playing' ? t('round_of', { n: Math.min(g.round, E.maxRounds(g)), total: E.maxRounds(g) }) : '';
@@ -79,7 +84,7 @@ function computeVals(ph){
       return { pips: [0,1,2,3,4,5,6,7,8].map(k => PIPS[v].includes(k) && !spin ? 1 : 0), ring: held ? me.color : 'transparent', lift: held ? -8 : 0, tagColor: me.color, tagOp: held ? 1 : 0,
         key: spin ? 'spin' : 'still' + (h.rollId || 0), opacity: spin ? .8 : 1,
         anim: spin ? (reduced ? 'none' : `${i % 2 ? 'tumbleLoopA' : 'tumbleLoopB'} ${.5 + i * .06}s linear infinite`) : (!h.rolled || held || reduced) ? 'none' : (((h.rollId||0) % 2 ? 'tumbleA' : 'tumbleB') + ' .55s ease-out'),
-        toggle: () => h.rolled && reveal && !ph.shaking && act('hold', i) };
+        toggle: () => h.rolled && reveal && !ph.shaking && !ph.holding && act('hold', i) };
     });
     // 3D view (same page as the TV): spins with visible pips while I shake, then lands on the server's dice
     vals.dice3dMsg = { dice: h.dice, held: h.held.map(x => !!(x && h.rolled)), rolled: h.rolled, rollKey: `${g.round}|${g.mode === 'turns' ? g.activeIdx : me.id}|${h.rollId || 0}`,
@@ -87,15 +92,15 @@ function computeVals(ph){
     on.dieTap = i => vals.dice[i] && vals.dice[i].toggle();
     on.diceSettled = () => act('settled');
     vals.diceOpacity = h.rolled || tumbling ? 1 : .45;
-    vals.diceHint = ph.settling || ph.rolling ? t('settling') : ph.shaking ? t('shaking') : h.rolled ? t('tap_to_hold') : ' ';
+    vals.diceHint = ph.settling || ph.rolling ? t('settling') : ph.shaking ? t('shaking') : ph.holding ? t('holding') : h.rolled ? t('tap_to_hold') : ' ';
     vals.servidaVisible = variant === 'generala' && h.rolled && h.rollsLeft === 2 && reveal;
-    const canRoll = h.rollsLeft > 0 && !ph.busy && !hidden;
+    const canRoll = h.rollsLeft > 0 && !ph.busy && !hidden && !ph.holding;
     vals.rollBg = canRoll ? me.color : '#D9C7B0'; vals.rollFg = '#1E1715';
-    vals.rollLabel = ph.shaking ? '🎲 ' + t('shaking') : hidden ? t('settling') : ph.busy ? t('processing') : h.rollsLeft === 0 ? t('no_rolls') : h.rolled ? '🎲 ' + t('roll_again') : '🎲 ' + t('roll');
+    vals.rollLabel = ph.shaking ? '🎲 ' + t('shaking') : hidden ? t('settling') : ph.holding ? t('holding') : ph.busy ? t('processing') : h.rollsLeft === 0 ? t('no_rolls') : h.rolled ? '🎲 ' + t('roll_again') : '🎲 ' + t('roll');
     vals.rollScale = ph.shaking ? .97 : 1;
     vals.shakeVisible = ph.motion === 'granted' && h.rollsLeft > 0; vals.shakeVis = canRoll && !ph.shaking ? 'visible' : 'hidden';
     vals.shakeHintText = t('hold_to_shake');
-    vals.goSheetVisible = h.rolled; vals.goSheetVis = reveal && !ph.shaking ? 'visible' : 'hidden'; // keep its space: no layout jump while landing
+    vals.goSheetVisible = h.rolled; vals.goSheetVis = reveal && !ph.shaking && !ph.holding ? 'visible' : 'hidden'; // keep its space: no layout jump while landing
     const pot = E.handPotential(g, me.id);
     const cats = E.VARIANTS[variant].cats;
     vals.sheet = cats.map(c => {
@@ -183,6 +188,7 @@ export default function GeneralaPhone({ phone }){
           <div data-screen-label="Celular · Espera en sala" style={{ padding: '8px 18px 24px', display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, background: v.me.color, borderRadius: 18, padding: '14px 16px' }}><span style={{ width: 48, height: 48, borderRadius: '50%', background: '#FFF9EE', display: 'grid', placeItems: 'center', fontFamily: fredoka, fontWeight: 700, fontSize: 26 }}>{v.me.initial}</span><div style={{ display: 'flex', flexDirection: 'column' }}><span style={{ fontSize: 19, fontWeight: 800 }}>{v.me.name}</span><span style={{ fontSize: 14, fontWeight: 800, opacity: .75 }}>✓ {T.joined}</span></div></div>
             {v.motionNote && <div style={{ fontSize: 13, color: '#6E6052', background: '#F1E6D2', borderRadius: 12, padding: '10px 12px', lineHeight: 1.4 }}>{v.motionNoteText}</div>}
+            <button data-alert-test="1" onClick={v.alertTest} style={{ ...outlineBtn, minHeight: 44, padding: 10, fontSize: 15 }}>🔔 {T.alert_test}</button>
             <span style={label}>{T.players_label}</span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {v.others.map(p => <div key={p.key} style={listRow}><span style={{ ...smallAvatar, background: p.color }}>{p.initial}</span><span style={{ fontWeight: 800, fontSize: 16 }}>{p.name}</span><span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: p.connColor }}>{p.connLabel}</span></div>)}
@@ -330,6 +336,16 @@ export default function GeneralaPhone({ phone }){
           </div>
         </div>
       )}
+
+      {v.tapNeeded && (
+        <div data-alert-tap="1" style={{ position: 'absolute', left: 12, right: 12, bottom: 'calc(12px + env(safe-area-inset-bottom))', zIndex: 6, background: '#1E1715', color: '#FFF3DF', borderRadius: 16, padding: '12px 14px', fontSize: 14, fontWeight: 800, textAlign: 'center', boxShadow: '0 12px 24px -12px rgba(0,0,0,.6)' }}>🔔 {T.alert_tap}</div>
+      )}
+
+      {v.flashKey ? (
+        <div key={v.flashKey} data-turn-flash="1" style={{ position: 'absolute', inset: 0, zIndex: 7, pointerEvents: 'none', background: v.me ? v.me.color : accent, display: 'grid', placeItems: 'center', animation: v.flashAnim }}>
+          <span style={{ fontFamily: fredoka, fontWeight: 700, fontSize: 40, color: '#1E1715' }}>{T.your_turn}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
