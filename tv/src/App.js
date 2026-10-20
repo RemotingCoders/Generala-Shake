@@ -222,7 +222,7 @@ export class App extends React.Component {
         {GLOW.map(({ g, color }, i) => <View key={i} pointerEvents="none" style={{ position: 'absolute', top: SCREEN.height * (-0.1 - g), left: SCREEN.width * (0.2 - g) - SCREEN.width * 0.25, width: SCREEN.width * (0.5 + 2 * g), height: SCREEN.width * (0.5 + 2 * g), borderRadius: SCREEN.width, backgroundColor: color }} />)}
         {body}
         <FullyDrawnMarker ready={!booting} />
-        {VOICE_ENABLED ? <Voice line={game ? v.voiceLine : null} enabled={!tv.muted} lang={tv.lang} /> : null}
+        {VOICE_ENABLED ? <Voice line={game ? v.voiceLine : null} sfx={game ? v.fanfare : null} enabled={!tv.muted} lang={tv.lang} /> : null}
         {banner ? (
           <View pointerEvents="none" style={sx({ position: 'absolute', top: 12, left: 0, right: 0, alignItems: 'center' })}>
             <View style={sx({ backgroundColor: C.focus, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 24 })}>

@@ -65,6 +65,32 @@ function chime(){
   if (ctx.state === 'running') ring(); else ctx.resume().then(ring, () => {}); // may work if not interrupted
 }
 
+// Celebration for the winner: a bright ascending arpeggio (C5 E5 G5 C6) held as a chord, with a few high sparkles.
+function fanfare(){
+  if (!ctx) return;
+  const play = () => {
+    const t0 = ctx.currentTime;
+    const note = (f, at, len, amp, type) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type || 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + at);
+      g.gain.exponentialRampToValueAtTime(amp, t0 + at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + len);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t0 + at); o.stop(t0 + at + len + 0.05);
+    };
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => note(f, i * 0.09, 0.9, 0.35));          // arpeggio
+    [523.25, 659.25, 783.99, 1046.5].forEach(f => note(f, 0.42, 2.0, 0.12, 'sine'));            // chord pad
+    [1318.5, 1568, 2093, 1976, 1568, 2093, 1318.5, 2637].forEach((f, i) => note(f, 0.7 + i * 0.17, 0.35, 0.08, 'sine')); // sparkles
+  };
+  if (ctx.state === 'running') play(); else ctx.resume().then(play, () => {});
+}
+
+export function winCelebration(){
+  try { navigator.vibrate && navigator.vibrate([120, 60, 120, 60, 400]); } catch (e) {}
+  try { fanfare(); } catch (e) {}
+}
+
 export function turnAlert(){
   try { navigator.vibrate && navigator.vibrate([200, 100, 200, 100, 300]); } catch (e) {}
   try { chime(); } catch (e) {}

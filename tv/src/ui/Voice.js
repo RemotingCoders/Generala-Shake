@@ -10,6 +10,9 @@
 //
 // Lines already on screen when the app (re)starts aren't spoken: only lines that appear after the first one this
 // component saw. Renders nothing.
+//
+// `sfx` ({ id, url }) plays a sound effect through the same one-at-a-time player (the celebration jingle on the
+// results screen); a pending sound goes before a pending line, so the jingle is heard before the closing narration.
 import React from 'react';
 import { AudioPlayer, AudioContentType, AudioUsageType } from '@amazon-devices/react-native-w3cmedia';
 import { VOICE_DEBUG_URL, VOICE_TTS_URL } from '../config';
@@ -24,7 +27,7 @@ function ttsUrl(l){
 }
 
 export class Voice extends React.Component {
-  seen = undefined; pending = null; busy = false; current = null; unmounted = false;
+  seen = undefined; seenSfx = undefined; pending = null; pendingSfx = null; busy = false; current = null; unmounted = false;
 
   componentDidMount(){
     this.check();
@@ -37,7 +40,10 @@ export class Voice extends React.Component {
   debug(o){ if (VOICE_DEBUG_URL) fetch(VOICE_DEBUG_URL + '/voice?data=' + encodeURIComponent(JSON.stringify(o))).catch(() => {}); }
 
   check(){
-    const { line, enabled } = this.props;
+    const { line, sfx, enabled } = this.props;
+    const sid = sfx && sfx.url ? sfx.id : null;
+    if (this.seenSfx === undefined) this.seenSfx = sid; // baseline: a results screen we resumed on stays quiet
+    else if (sid !== this.seenSfx) { this.seenSfx = sid; if (sid && enabled) { this.pendingSfx = sfx; this.next(); } }
     const id = line ? line.id : null;
     if (this.seen === undefined) { this.seen = id; return; } // baseline: don't replay the line we resumed on
     if (id === this.seen) return;
@@ -48,21 +54,25 @@ export class Voice extends React.Component {
     this.next();
   }
 
-  stop(){ this.pending = null; if (this.current) this.current.finish('stopped'); }
+  stop(){ this.pending = null; this.pendingSfx = null; if (this.current) this.current.finish('stopped'); }
 
   async next(){
-    if (this.busy || this.unmounted || !this.pending || !VOICE_TTS_URL) return;
-    const line = this.pending; this.pending = null; this.busy = true;
-    try { await this.play(line); }
-    catch (e) { this.debug({ type: 'playFailed', id: line.id, err: String(e && (e.message || e)) }); }
+    if (this.busy || this.unmounted) return;
+    const item = this.pendingSfx || (VOICE_TTS_URL ? this.pending : null);
+    if (!item) return;
+    if (item === this.pendingSfx) this.pendingSfx = null; else this.pending = null;
+    this.busy = true;
+    try { await this.play(item); }
+    catch (e) { this.debug({ type: 'playFailed', id: item.id, err: String(e && (e.message || e)) }); }
     this.busy = false;
     this.next();
   }
 
-  // Resolves once the line has finished (or failed, or was stopped) and its player is deinitialized.
+  // Resolves once the line (or sound effect: an item with its own `url`) has finished, failed or was stopped, and
+  // its player is deinitialized.
   play(line){
     return new Promise(resolve => {
-      const p = new AudioPlayer(AudioContentType.CONTENT_TYPE_SPEECH, AudioUsageType.USAGE_MEDIA);
+      const p = new AudioPlayer(line.url ? AudioContentType.CONTENT_TYPE_MUSIC : AudioContentType.CONTENT_TYPE_SPEECH, AudioUsageType.USAGE_MEDIA);
       let done = false, timer = null;
       const finish = (why) => {
         if (done) return; done = true; clearTimeout(timer);
@@ -78,7 +88,7 @@ export class Voice extends React.Component {
       timer = setTimeout(() => finish('watchdog'), WATCHDOG_MS);
       p.initialize().then(() => {
         if (done) return;
-        p.src = ttsUrl(line);
+        p.src = line.url || ttsUrl(line);
         const r = p.play(); if (r && r.catch) r.catch(e => finish('playError ' + String(e && (e.message || e))));
         this.debug({ type: 'say', id: line.id });
       }, e => { this.debug({ type: 'initError', id: line.id, err: String(e && (e.message || e)) }); finish('initError'); });

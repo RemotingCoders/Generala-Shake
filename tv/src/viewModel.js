@@ -2,6 +2,7 @@
 // Never computes game outcomes: phase, winners, turns and scores come from the server. Engine helpers are
 // used only for display (totals, potentials, round count).
 import * as E from './shared/engine';
+import { WIN_SFX_URL } from './config';
 import * as I from './shared/i18n';
 import { C } from './ui/components';
 import { TV_STR } from './strings';
@@ -176,6 +177,9 @@ export function computeVals(tv, g){
       : g.endReason === 'tie' ? tt('tie', { names: winners.map(w => w.name).join(' · ') })
       : tt('winner', { name: winners[0] ? winners[0].name : '' });
     v.playedLabel = tt('played_variant', { variant: variantName, mode: modeName });
+    // celebration jingle (ui/Voice.js plays it once per finished game, before the narrator's closing line)
+    const endEv = evs.filter(e => e.type === 'end').pop();
+    v.fanfare = { id: g.roomCode + ':fanfare:' + (endEv ? endEv.id : 'seq' + g.seq), url: WIN_SFX_URL };
   }
   return v;
 }

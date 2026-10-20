@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { C, Txt, FButton, Avatar, Pill, Die, Narrator, QR } from './ui/components';
 import { sx, px } from './ui/scale';
 import { Dice3D } from './ui/Dice3D';
+import { Confetti } from './ui/Confetti';
 import { DICE3D_ENABLED } from './config';
 
 const eyebrow = { fontSize: 20, fontWeight: '800', letterSpacing: 2, color: C.muted };
@@ -352,15 +353,12 @@ export function Playing({ v, on }){
   );
 }
 
-const CONFETTI = Array.from({ length: 28 }, (_, i) => ({ left: (i * 37) % 100, top: (i * 53) % 92, w: 10 + (i % 3) * 4, h: 14 + (i % 4) * 4, rot: (i * 47) % 180, color: ['#E8603C', '#2A9D8F', '#E9B44C', '#7B6CF6', '#FFF3DF'][i % 5] }));
 
 export function Results({ v, on }){
   const { T } = v;
   return (
     <View style={sx(screen, { paddingVertical: 48, paddingHorizontal: 72, flexDirection: 'row', gap: 48 })}>
-      <View pointerEvents="none" style={sx(screen)}>
-        {CONFETTI.map((c, i) => <View key={i} style={{ position: 'absolute', left: c.left + '%', top: c.top + '%', width: px(c.w), height: px(c.h), borderRadius: px(3), backgroundColor: c.color, opacity: 0.35, transform: [{ rotate: c.rot + 'deg' }] }} />)}
-      </View>
+      <Confetti reduced={v.reduced} />
       <View style={sx({ flex: 1, gap: 16, justifyContent: 'center' })}>
         <Txt style={{ fontSize: 22, fontWeight: '800', letterSpacing: 2, color: C.muted }}>{T.results_title.toUpperCase()}</Txt>
         <Txt head style={{ fontSize: 60, fontWeight: '700', lineHeight: 66 }}>{v.winnerLabel}</Txt>

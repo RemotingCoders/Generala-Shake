@@ -5,6 +5,8 @@ const PIPS = { 1:[4], 2:[0,8], 3:[0,4,8], 4:[0,2,6,8], 5:[0,2,4,6,8], 6:[0,2,3,5
 const DICE3D_QUERY = 'layout=grid&pr=' + Math.min(2, window.devicePixelRatio || 1);
 const fredoka = "'Fredoka',sans-serif";
 const dieFace = 'linear-gradient(145deg,#FFF9EE,#EAD9BE)';
+const CONFETTI_COLORS = ['#E8603C', '#2A9D8F', '#E9B44C', '#7B6CF6', '#1E1715'];
+const CONFETTI = Array.from({ length: 36 }, (_, i) => ({ key: i, left: (i * 37 + 11) % 100, w: 7 + (i % 3) * 3, h: 10 + (i % 4) * 3, color: CONFETTI_COLORS[i % CONFETTI_COLORS.length], anim: `fallPhone ${3.6 + (i % 6) * 0.55}s linear ${(i * 0.23) % 2.6}s infinite` }));
 const label = { fontSize: 12, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: '#8A7A6A' };
 const darkBtn = { background: '#1E1715', color: '#FFF3DF', border: 'none', borderRadius: 16, padding: 16, fontSize: 17, fontWeight: 800, minHeight: 56 };
 const outlineBtn = { background: 'transparent', color: '#1E1715', border: '2px solid #D9C7B0', borderRadius: 16, padding: 12, fontSize: 16, fontWeight: 800, minHeight: 48 };
@@ -125,6 +127,8 @@ function computeVals(ph){
     vals.resultBg = won ? me.color : '#1E1715'; vals.resultFg = won ? '#1E1715' : '#FFF3DF';
     vals.playedLabel = t('played_variant', { variant: variantName, mode: modeName });
     vals.ranking = ranked.map((x, i) => ({ key: x.p.id, rank: i + 1, name: x.p.name, color: x.p.color, initial: initial(x.p.name), total: x.total, bg: x.p.id === me.id ? '#F1E6D2' : '#fff' }));
+    // the winner's phone gets falling confetti (none with reduced motion, none for the others)
+    vals.confetti = won && !reduced ? CONFETTI.map(c => ({ ...c, color: c.color === me.color ? '#E9B44C' : c.color })) : [];
   }
   return vals;
 }
@@ -284,8 +288,9 @@ export default function GeneralaPhone({ phone }){
         )}
 
         {s.results && v.ranking && (
-          <div data-screen-label="Celular · Resultados" style={{ padding: '8px 18px 24px', display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
-            <div style={{ background: v.resultBg, color: v.resultFg, borderRadius: 20, padding: '22px 18px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 6, animation: v.popAnim }}><span style={{ fontFamily: fredoka, fontWeight: 700, fontSize: 32, lineHeight: 1.05, textWrap: 'pretty' }}>{v.resultTitle}</span><span style={{ fontSize: 14, fontWeight: 800, opacity: .8 }}>{v.playedLabel}</span></div>
+          <div data-screen-label="Celular · Resultados" style={{ padding: '8px 18px 24px', display: 'flex', flexDirection: 'column', gap: 14, flex: 1, position: 'relative', overflow: 'hidden' }}>
+            {v.confetti && v.confetti.length ? <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>{v.confetti.map(c => <i key={c.key} style={{ position: 'absolute', left: c.left + '%', top: -24, width: c.w, height: c.h, borderRadius: 2, background: c.color, opacity: .9, animation: c.anim }} />)}</div> : null}
+            <div style={{ position: 'relative', background: v.resultBg, color: v.resultFg, borderRadius: 20, padding: '22px 18px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 6, animation: v.popAnim }}><span style={{ fontFamily: fredoka, fontWeight: 700, fontSize: 32, lineHeight: 1.05, textWrap: 'pretty' }}>{v.resultTitle}</span><span style={{ fontSize: 14, fontWeight: 800, opacity: .8 }}>{v.playedLabel}</span></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {v.ranking.map(p => <div key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: p.bg, border: '1px solid #E3D6C0', borderRadius: 14 }}><span style={{ fontFamily: fredoka, fontWeight: 700, fontSize: 18, width: 22, opacity: .6 }}>{p.rank}</span><span style={{ width: 34, height: 34, borderRadius: '50%', background: p.color, display: 'grid', placeItems: 'center', fontFamily: fredoka, fontWeight: 700, fontSize: 18 }}>{p.initial}</span><span style={{ fontWeight: 800, fontSize: 16 }}>{p.name}</span><span style={{ marginLeft: 'auto', fontFamily: fredoka, fontWeight: 700, fontSize: 24 }}>{p.total}</span></div>)}
             </div>

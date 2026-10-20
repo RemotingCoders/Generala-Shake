@@ -4,7 +4,7 @@ import * as I from '../shared/i18n.js';
 import GeneralaPhone from './GeneralaPhone.jsx';
 import { rooms, watchRoom, isOffline, store } from './api.js';
 import { ShakeDetector } from './motion.js';
-import { armTurnAlert, turnAlert, keepAwake, needsTap } from './alert.js';
+import { armTurnAlert, turnAlert, winCelebration, keepAwake, needsTap } from './alert.js';
 
 const PREF = 'generala.phone.pref';       // { lang, name, color, motion, motionDone } — per device
 const SESSION = 'generala.phone.session'; // { code, playerToken, playerId } — so a reload rejoins
@@ -37,6 +37,7 @@ export default class PhoneApp extends React.Component {
       reduced: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
       tapNeeded: false, // sound/vibration blocked until the page is touched (e.g. after an auto-rejoin)
       turnFlash: 0,     // time of the last turn alert: the phone flashes for a moment
+      celebrate: 0,     // time the results arrived with me as the winner: confetti falls on the results screen
     };
   }
 
@@ -86,6 +87,8 @@ export default class PhoneApp extends React.Component {
       if (prev) { turnAlert(); patch.turnFlash = Date.now(); } // vibration + chime + flash; not on the first state after a (re)load
       patch.tab = 'dice'; patch.pick = null; patch.confirmZero = null;
     }
+    // the game just ended and I won: confetti + jingle (not on the first state after a (re)load)
+    if (me && prev && s.phase === 'results' && prev.phase !== 'results' && (s.winnerIds || []).includes(me)) { winCelebration(); patch.celebrate = Date.now(); }
     if (me && !isMyTurn(s, me)) {
       patch.pick = null; patch.confirmZero = null;
       if (this.shakeSrc) { this.shakeSrc = null; this.shakeT0 = null; clearInterval(this.shakeKeepAlive); patch.shaking = false; } // turn/round over or paused: drop the gesture

@@ -32,3 +32,6 @@ export const VOICE_DEBUG_URL = '';
 // Narrator audio: GET <VOICE_TTS_URL>?lang&k&name&score&cat&n (backend/api/tts.js, OpenAI). '' → no voice.
 // Must be https: Vega blocks cleartext http.
 export const VOICE_TTS_URL = API_BASE_URL + '/api/tts';
+// Celebration jingle on the results screen, served by the backend (backend/public/sfx/win.mp3) over https: the native
+// player does not play package-local file:// URLs. '' → no jingle.
+export const WIN_SFX_URL = API_BASE_URL + '/sfx/win.mp3';
