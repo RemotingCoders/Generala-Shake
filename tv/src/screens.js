@@ -312,7 +312,7 @@ export function Playing({ v, on }){
         <Txt style={{ marginLeft: 12, fontSize: 22, fontWeight: '800', color: C.sub }}>{v.roundLabel}</Txt>
         <View style={{ flex: 1 }} />
         <View style={sx({ flexDirection: 'row', gap: 10 })}>
-          {bar('help', '? ' + T.how_to_play)}
+          {bar('help', T.how_to_play)}
           {bar('mute', v.muteLabel)}
           {bar('pause', v.pauseLabel, true)}
           {bar('lang', v.langToggle)}

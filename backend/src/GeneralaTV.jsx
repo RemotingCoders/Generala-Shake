@@ -268,7 +268,7 @@ export default function GeneralaTV({ tv }){
             <span style={{ background: '#4A3B35', borderRadius: 999, padding: '5px 14px', fontWeight: 800, fontSize: 18 }}>{v.modeName}</span>
             <span style={{ marginLeft: 12, fontSize: 22, fontWeight: 800, color: '#D9C7B0' }}>{v.roundLabel}</span>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
-              <button onClick={on.help} style={{ ...pillBtn, boxShadow: fs.help }}>? {T.how_to_play}</button>
+              <button onClick={on.help} style={{ ...pillBtn, boxShadow: fs.help }}>{T.how_to_play}</button>
               <button onClick={on.mute} style={{ ...pillBtn, boxShadow: fs.mute }}>{v.muteLabel}</button>
               <button onClick={on.pause} style={{ ...pillBtn, boxShadow: fs.pause }}>{v.pauseLabel}</button>
               <button onClick={on.lang} style={{ ...pillBtn, boxShadow: fs.lang }}>{v.langToggle}</button>
