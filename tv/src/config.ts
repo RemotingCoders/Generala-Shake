@@ -16,6 +16,9 @@ export const API_BASE_URL: string = VERCEL_API_BASE_URL;
 // Live updates: the contract asks for a 1000 ms poll of GET /api/rooms/:code (realtime is optional).
 export const POLL_MS = 1000;
 export const REQUEST_TIMEOUT_MS = 8000;
+// Boot: resuming a saved room may wait for the server up to REQUEST_TIMEOUT_MS; after this long the home
+// screen is shown anyway and the resume finishes in the background (Vega launch KPI: fully drawn < 8 s).
+export const BOOT_RESUME_MS = 2500;
 
 // 3D dice (WebView). DICE3D_DEBUG_URL: when set (e.g. 'http://10.0.2.2:8766'), every message from the 3D view
 // (ready / settled / error / stats) is also sent as GET <url>/dice3d?data=<json> — for testing on the VVD.

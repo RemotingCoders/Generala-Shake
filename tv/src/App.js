@@ -4,13 +4,14 @@
 import React from 'react';
 import { AccessibilityInfo, BackHandler, View } from 'react-native';
 import { api, isGone } from './api';
-import { POLL_MS, DICE3D_ENABLED, VOICE_ENABLED } from './config';
+import { POLL_MS, BOOT_RESUME_MS, DICE3D_ENABLED, VOICE_ENABLED } from './config';
 import { loadSession, saveSession, clearSession, loadPrefs, savePrefs } from './storage';
 import { computeVals, screenOf } from './viewModel';
 import { Home, Setup, Lobby, Playing, Results, Closed, Help } from './screens';
 import { C, Txt } from './ui/components';
 import { SCREEN, sx } from './ui/scale';
 import { Voice } from './ui/Voice';
+import { FullyDrawnMarker } from './ui/FullyDrawn';
 
 function detectLang(){
   try {
@@ -25,8 +26,9 @@ const NET_STR = {
   en: { net_error: "Can't reach the server. Retrying…", create_error: "Couldn't create the room ({code}). Try again." },
 };
 
-// soft radial glow at the top-left (the design's radial-gradient), drawn as stacked translucent circles
-const GLOW = [0, 0.08, 0.16, 0.24];
+// soft radial glow at the top-left (the design's radial-gradient). Two opaque discs with pre-blended colors
+// instead of four stacked translucent ones: Vega's "avoid overdraw" guide flags transparent full-screen layers.
+const GLOW = [{ g: 0.24, color: '#241B18' }, { g: 0.08, color: '#291F1B' }];
 
 export class App extends React.Component {
   state = {
@@ -49,19 +51,26 @@ export class App extends React.Component {
     const prefs = await loadPrefs();
     if (prefs.lang === 'es' || prefs.lang === 'en') this.setTv({ lang: prefs.lang });
     if (prefs.muted) this.setTv({ muted: true });
+    // Resume a saved room, but never keep the screen empty for long: after BOOT_RESUME_MS the home screen
+    // shows and the resume finishes in the background (Vega launch KPI: time to fully drawn).
+    const bootTimer = setTimeout(() => this.setState({ booting: false }), BOOT_RESUME_MS);
+    try { await this.resumeSession(); }
+    finally { clearTimeout(bootTimer); this.setState({ booting: false }); }
+  }
+
+  async resumeSession(){
     const session = await loadSession();
-    if (session && session.code && session.hostToken) {
-      try {
-        const r = await api.getRoom(session.code);
-        if (r.state && !r.state.closed) { this.setState({ session, game: r.state }); this.startPolling(); }
-        else await clearSession();
-      } catch (e) {
-        console.warn('[generala] resume failed', e.code, e.status);
-        if (isGone(e)) await clearSession();
-        else { this.setState({ session, netError: true }); this.startPolling(); } // server down: keep trying
-      }
+    if (!(session && session.code && session.hostToken)) return;
+    try {
+      const r = await api.getRoom(session.code);
+      if (this.state.session) return; // the user already created a room while this was pending
+      if (r.state && !r.state.closed) { this.setState({ session, game: r.state }); this.startPolling(); }
+      else await clearSession();
+    } catch (e) {
+      console.warn('[generala] resume failed', e.code, e.status);
+      if (isGone(e)) await clearSession();
+      else if (!this.state.session) { this.setState({ session, netError: true }); this.startPolling(); } // server down: keep trying
     }
-    this.setState({ booting: false });
   }
 
   componentWillUnmount(){
@@ -210,8 +219,9 @@ export class App extends React.Component {
     const banner = this.state.netError ? NET_STR[tv.lang].net_error : this.state.toast;
     return (
       <View style={{ width: SCREEN.width, height: SCREEN.height, backgroundColor: C.bg, overflow: 'hidden' }}>
-        {GLOW.map((g, i) => <View key={i} pointerEvents="none" style={{ position: 'absolute', top: SCREEN.height * (-0.1 - g), left: SCREEN.width * (0.2 - g) - SCREEN.width * 0.25, width: SCREEN.width * (0.5 + 2 * g), height: SCREEN.width * (0.5 + 2 * g), borderRadius: SCREEN.width, backgroundColor: '#3A2A24', opacity: 0.12 }} />)}
+        {GLOW.map(({ g, color }, i) => <View key={i} pointerEvents="none" style={{ position: 'absolute', top: SCREEN.height * (-0.1 - g), left: SCREEN.width * (0.2 - g) - SCREEN.width * 0.25, width: SCREEN.width * (0.5 + 2 * g), height: SCREEN.width * (0.5 + 2 * g), borderRadius: SCREEN.width, backgroundColor: color }} />)}
         {body}
+        <FullyDrawnMarker ready={!booting} />
         {VOICE_ENABLED ? <Voice line={game ? v.voiceLine : null} enabled={!tv.muted} lang={tv.lang} /> : null}
         {banner ? (
           <View pointerEvents="none" style={sx({ position: 'absolute', top: 12, left: 0, right: 0, alignItems: 'center' })}>

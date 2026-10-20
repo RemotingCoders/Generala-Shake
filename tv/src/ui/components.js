@@ -39,7 +39,7 @@ export function Txt({ style, head, children, lines, ...rest }){
 
 // Focusable button for the D-pad: native Vega focus (Pressable onFocus/onBlur), yellow ring when focused.
 // blockDown: Down keeps the focus here (nextFocusDown = itself), e.g. above a WebView that would grab it.
-export function FButton({ onPress, style, radius = 999, preferred, focusable = true, dim, children, testID, onFocusChange, blockDown }){
+export function FButton({ onPress, style, radius = 999, preferred, focusable = true, dim, children, testID, onFocusChange, blockDown, ...rest }){
   const [focused, setFocused] = useState(false);
   const ref = useRef(null);
   const [selfTag, setSelfTag] = useState(undefined);
@@ -48,6 +48,7 @@ export function FButton({ onPress, style, radius = 999, preferred, focusable = t
   const r = radius === 999 ? 999 : px(radius);
   return (
     <Pressable
+      {...rest}
       ref={ref}
       nextFocusDown={blockDown ? selfTag : undefined}
       testID={testID}

@@ -5,3 +5,6 @@ dist
 .env.local
 .env.*.local
 .vercel
+# Vega KPI Visualizer / perf tool output
+tv/output
+tv/generated

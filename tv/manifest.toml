@@ -49,3 +49,7 @@ id = "com.amazon.audio.stream"
 
 [[wants.service]]
 id = "com.amazon.audio.control"
+
+# Accessibility (VoiceView) support, recommended by the Vega WebView guide
+[[wants.service]]
+id = "com.amazon.kepler.ucc.publisher"

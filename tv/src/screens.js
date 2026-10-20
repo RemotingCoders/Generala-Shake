@@ -22,9 +22,9 @@ function AccentBtn({ v, on, id, label, preferred, dim, style, size = 28 }){
     </FButton>
   );
 }
-function GhostBtn({ on, id, label, preferred, style, size = 24, focusable }){
+function GhostBtn({ on, id, label, preferred, style, size = 24, focusable, a11y }){
   return (
-    <FButton onPress={on[id]} preferred={preferred} testID={id} focusable={focusable} style={[ghostBtn, style]}>
+    <FButton onPress={on[id]} preferred={preferred} testID={id} focusable={focusable} accessibilityLabel={a11y} style={[ghostBtn, style]}>
       <Txt style={[ghostTxt, { fontSize: size }]}>{label}</Txt>
     </FButton>
   );
@@ -74,7 +74,7 @@ export function Home({ v, on }){
         <AccentBtn v={v} on={on} id="continue" label={T.continue + ' →'} />
         <GhostBtn on={on} id="help" label={T.how_to_play} />
         <View style={{ flex: 1 }} />
-        <GhostBtn on={on} id="lang" label={'🌐 ' + v.langToggle} size={22} style={{ paddingVertical: 14, paddingHorizontal: 24 }} />
+        <GhostBtn on={on} id="lang" label={'🌐 ' + v.langToggle} a11y={v.langA11y} size={22} style={{ paddingVertical: 14, paddingHorizontal: 24 }} />
       </View>
       <Txt style={{ marginTop: 18, fontSize: 18, color: C.faint }}>{T.remote_hint}</Txt>
     </View>
@@ -174,7 +174,7 @@ export function Lobby({ v, on, joinUrl }){
           <AccentBtn v={v} on={on} id="start" label={PLAY + ' ' + T.start_game} preferred dim={!v.canStart} size={24} style={{ paddingHorizontal: 32, paddingVertical: 18 }} />
           <GhostBtn on={on} id="leave" label={T.leave_room} size={22} style={{ paddingHorizontal: 24, paddingVertical: 15 }} />
           <View style={{ flex: 1 }} />
-          <GhostBtn on={on} id="lang" label={v.langToggle} size={20} style={{ paddingVertical: 15, paddingHorizontal: 20 }} />
+          <GhostBtn on={on} id="lang" label={v.langToggle} a11y={v.langA11y} size={20} style={{ paddingVertical: 15, paddingHorizontal: 20 }} />
         </View>
       </View>
     </View>
@@ -297,9 +297,9 @@ function SimulBoard({ v }){
 export function Playing({ v, on }){
   const { T } = v;
   const barFocusable = !v.isPaused;
-  const bar = (id, label, preferred) => (
+  const bar = (id, label, preferred, a11y) => (
     // blockDown: the 3D dice WebView below is a native focus target on Vega even with focusable={false}
-    <FButton onPress={on[id]} focusable={barFocusable} preferred={preferred && barFocusable} testID={id} style={pillBtn} blockDown={!!v.dice3d}>
+    <FButton onPress={on[id]} focusable={barFocusable} preferred={preferred && barFocusable} testID={id} accessibilityLabel={a11y} style={pillBtn} blockDown={!!v.dice3d}>
       <Txt style={pillTxt}>{label}</Txt>
     </FButton>
   );
@@ -313,9 +313,9 @@ export function Playing({ v, on }){
         <View style={{ flex: 1 }} />
         <View style={sx({ flexDirection: 'row', gap: 10 })}>
           {bar('help', T.how_to_play)}
-          {bar('mute', v.muteLabel)}
+          {bar('mute', v.muteLabel, false, v.muteA11y)}
           {bar('pause', v.pauseLabel, true)}
-          {bar('lang', v.langToggle)}
+          {bar('lang', v.langToggle, false, v.langA11y)}
         </View>
       </View>
       {v.isTurns && v.active ? <TurnsBoard v={v} on={on} /> : null}
@@ -370,7 +370,7 @@ export function Results({ v, on }){
           <View style={sx({ flexDirection: 'row', gap: 12, flexWrap: 'wrap' })}>
             <GhostBtn on={on} id="changeVariant" label={T.change_variant} size={22} style={{ paddingVertical: 15, paddingHorizontal: 26 }} />
             <GhostBtn on={on} id="home" label={T.go_home} size={22} style={{ paddingVertical: 15, paddingHorizontal: 26 }} />
-            <GhostBtn on={on} id="lang" label={v.langToggle} size={22} style={{ paddingVertical: 15, paddingHorizontal: 26 }} />
+            <GhostBtn on={on} id="lang" label={v.langToggle} a11y={v.langA11y} size={22} style={{ paddingVertical: 15, paddingHorizontal: 26 }} />
           </View>
         </View>
       </View>

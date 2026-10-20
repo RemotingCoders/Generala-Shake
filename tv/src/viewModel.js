@@ -63,6 +63,7 @@ export function computeVals(tv, g){
   const v = {
     T, lang, accent, variant, variantName, modeName, reduced,
     langToggle: lang === 'es' ? 'ES · English' : 'EN · Español',
+    langA11y: lang === 'es' ? 'Cambiar idioma a inglés' : 'Switch language to Spanish', // screen reader (VoiceView)
     vGBorder: variant === 'generala' ? C.generala : C.card, vYBorder: variant === 'yahtzee' ? C.yahtzee : C.card,
     vGCheck: variant === 'generala' ? 1 : 0, vYCheck: variant === 'yahtzee' ? 1 : 0,
     mTurnsBorder: tv.setup.mode === 'turns' ? accent : C.card, mSimulBorder: tv.setup.mode === 'simul' ? accent : C.card,
@@ -84,6 +85,7 @@ export function computeVals(tv, g){
   const rounds = E.maxRounds(g);
   v.roundLabel = tt('round_of', { n: Math.max(1, Math.min(g.round, rounds)), total: rounds });
   v.muteLabel = tv.muted ? '🔇 ' + tt('unmute') : '🔈 ' + tt('mute');
+  v.muteA11y = tt(tv.muted ? 'unmute' : 'mute'); // same without the emoji, for the screen reader
   v.pauseLabel = g.paused ? tt('resume') : tt('pause');
   v.isPaused = !!g.paused && g.phase === 'playing';
   const dcP = players.find(p => !p.connected);
